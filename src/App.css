@@ -1,0 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+:root {
+  --navbar: #0c0a43;
+
+  /*theme and form*/
+  --button: #4f46e5;
+  --button-hover: #4338ca;
+  --text-box: #9ca3af;
+  --disable-button: #cdcdcd;
+  --label: #374151;
+  --error: #dc2626;
+  --error-border: #fee2e2;
+  --focus: #3b82f6;
+
+  /*snackbar and password strength bar*/
+  --error-bg: #fecdc3;
+  --error-bg1: #ffebe7;
+  --warning: #ff7b00;
+  --warning-bg: #ffc785;
+  --warning-bg1: #ffedd8;
+  --success: green;
+  --success-bg: #d1fed1;
+  --success-bg1: #ecfff7;
+  --snackbar-text: #262626;
+
+  /*gray variants*/
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+
+  /*modal*/
+  --bg-modal: rgba(0, 0, 0, 0.5);
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}

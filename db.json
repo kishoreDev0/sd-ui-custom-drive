@@ -1,0 +1,88 @@
+{
+  "login": [
+    {
+      "id": "3db6",
+      "email": "test@example1.com",
+      "password": "password123"
+    },
+    {
+      "id": "1e67",
+      "email": "test@example.com",
+      "password": "password123"
+    },
+    {
+      "id": "97b4",
+      "email": "test@example.com",
+      "password": "password123"
+    }
+  ],
+  "register": [
+    {
+      "id": "reg1",
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john.doe@example.com",
+      "phoneNumber": "1234567890",
+      "address": "123 Main St",
+      "city": "Anytown",
+      "state": "State",
+      "pincode": "12345",
+      "password": "Password123!"
+    }
+  ],
+  "inviteUser": [
+    {
+      "id": "inv1",
+      "name": "User 1",
+      "email": "user1@gmail.com",
+      "role": "admin",
+      "status": "pending"
+    },
+    {
+      "id": "inv2",
+      "name": "User 2",
+      "email": "user2@gmail.com",
+      "role": "editor",
+      "status": "pending"
+    }
+  ],
+  "forgotPassword": [
+    {
+      "email": "test@example1.com",
+      "resetToken": "abfgGjpo",
+      "tokenExpiry": "2024-03-30T12:00:00Z"
+    },
+    {
+      "email": "test@example2.com",
+      "resetToken": "def456uvw",
+      "tokenExpiry": "2024-03-30T13:00:00Z"
+    },
+    {
+      "email": "test@example3.com",
+      "resetToken": "d4gcEuvw",
+      "tokenExpiry": "2024-03-30T14:00:00Z"
+    }
+  ],
+  "changePassword": [
+    {
+      "email": "test@example.com",
+      "currentPassword": "password123",
+      "newPassword": "newPassword456!"
+    },
+    {
+      "email": "test@example1.com",
+      "currentPassword": "password123",
+      "newPassword": "securePass789#"
+    }
+  ],
+  "resetPassword": [
+    {
+      "oldPassword": "Admin@123",
+      "newPassword": "Admin@12"
+    },
+    {
+      "oldPassword": "Admin123",
+      "newPassword": "Admin12"
+    }
+  ]
+}
