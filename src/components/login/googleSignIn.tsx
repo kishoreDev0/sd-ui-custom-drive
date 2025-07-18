@@ -1,74 +1,47 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from './authState';
-import Loader from '../loader/loader';
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const GoogleAuthSuccess: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { login } = useAuth();
-  const [isProcessing, setIsProcessing] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isProcessing) return;
-
-    const processAuth = () => {
-      const queryParams = new URLSearchParams(location.search);
-      const userDataParam = queryParams.get('userData');
-
-      if (!userDataParam) {
-        setError('No user data provided');
-        setIsProcessing(false);
-        return;
-      }
-
+    // Extract access token from URL hash
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+    const accessToken = params.get('access_token');
+    async function fetchAndStoreUserInfo(token: string) {
       try {
-        const userData = JSON.parse(decodeURIComponent(userDataParam));
-        login(userData);
-        setIsProcessing(false);
-        navigate('/dashboard', { replace: true });
-      } catch (error) {
-        console.error('Error during authentication:', error);
-        setError('Authentication failed');
-        setIsProcessing(false);
+        const res = await fetch(
+          'https://www.googleapis.com/oauth2/v3/userinfo',
+          {
+            headers: { Authorization: 'Bearer ' + token },
+          },
+        );
+        if (res.ok) {
+          const userInfo = await res.json();
+          localStorage.setItem('userInfo', JSON.stringify(userInfo));
+        }
+      } catch (e) {
+        // ignore
       }
-    };
-    const timer = setTimeout(processAuth, 50);
-    return () => clearTimeout(timer);
-  }, [location, navigate, login, isProcessing]);
+    }
+    if (accessToken) {
+      localStorage.setItem('googleAccessToken', accessToken);
+      fetchAndStoreUserInfo(accessToken).finally(() => {
+        window.history.replaceState(null, '', window.location.pathname);
+        navigate('/dashboard', { replace: true });
+      });
+    } else {
+      navigate('/login', { replace: true });
+    }
+  }, [navigate]);
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[var(--gray-50)] flex flex-col justify-center items-center">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-[var(--error)]">
-            Authentication Error
-          </h2>
-          <p className="mt-2 text-[var(--gray-600)]">{error}</p>
-          <button
-            onClick={() => navigate('/login')}
-            className="mt-4 px-4 py-2 bg-[var(--focus)] text-white rounded hover:bg-[var(--focus)]"
-          >
-            Return to Login
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (isProcessing) {
-    return (
-      <Loader text="Authentication successful. Redirecting to dashboard..." />
-    );
-  }
   return (
     <div className="min-h-screen bg-[var(--gray-50)] flex flex-col justify-center items-center">
       <div className="text-center">
-        <h2 className="text-xl font-semibold text-[var(--gray-700)]">
-          Authentication successful
+        <h2 className="text-xl font-semibold text-[var(--gray-700)] mb-4">
+          Processing Google sign-in...
         </h2>
-        <p className="mt-2 text-gray-600">Redirecting to dashboard...</p>
       </div>
     </div>
   );

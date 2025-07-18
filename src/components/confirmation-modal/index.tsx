@@ -21,7 +21,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center bg-[var(--bg-modal)]"
+      className="fixed inset-0 flex items-center justify-center z-10 bg-[var(--bg-modal)]"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) {
           onClose();

@@ -7,31 +7,10 @@ const GitHubAuthSuccess: React.FC = () => {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const userDataParam = params.get('userData');
-
-    if (userDataParam) {
-      try {
-        const userData = JSON.parse(decodeURIComponent(userDataParam));
-
-        const userForStorage = {
-          userName: userData.username || userData.displayName || 'GitHub User',
-          email: userData.email || '',
-          firstName: userData.displayName?.split(' ')[0] || '',
-          lastName: userData.displayName?.split(' ').slice(1).join(' ') || '',
-          picture: userData.avatarUrl || '',
-        };
-
-        localStorage.setItem('user', JSON.stringify(userForStorage));
-        localStorage.setItem('isAuthenticated', 'true');
-        if (userData.accessToken) {
-          localStorage.setItem('githubAccessToken', userData.accessToken);
-        }
-
-        navigate('/dashboard', { replace: true });
-      } catch (error) {
-        console.error('Error parsing GitHub user data:', error);
-        navigate('/login', { replace: true });
-      }
+    const accessToken = params.get('access_token');
+    if (accessToken) {
+      localStorage.setItem('githubAccessToken', accessToken);
+      navigate('/dashboard', { replace: true });
     } else {
       navigate('/login', { replace: true });
     }
