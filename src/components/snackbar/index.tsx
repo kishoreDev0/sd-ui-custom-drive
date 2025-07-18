@@ -77,7 +77,11 @@ export function Snackbar({
           onClick={handleClose}
           className="ml-auto p-1 rounded flex items-center justify-center"
         >
-          <img src={closeIcon} alt="Close" className="w-4 h-4 hover:text-[var(--gray-500)]" />
+          <img
+            src={closeIcon}
+            alt="Close"
+            className="w-4 h-4 hover:text-[var(--gray-500)]"
+          />
         </button>
       </div>
     </div>
