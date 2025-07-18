@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import DynamicForm, { FieldConfig } from '../form-component';
 import { initializeHttpClient } from '@/axios-setup/axios-interceptor';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { clearError } from '@/store/slices/authentication/login';
 import { loginUser } from '@/store/action/authentication/login';
 import googleLogo from '@/assets/googleLogo.png';
-import githubLogo from '@/assets/github.png';
 import Loader from '../loader/loader';
 import { useSnackbar } from '@/components/snackbar/SnackbarProvider';
 import { decryptToken } from '@/utils/crypto';
@@ -36,8 +34,6 @@ const Login: React.FC<LoginProps> = ({ logoSrc, logoAlt = 'Company Logo' }) => {
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [currentFolder, setCurrentFolder] = useState<string>('root');
   const [parentStack, setParentStack] = useState<string[]>([]);
   const [folderNames, setFolderNames] = useState<{ [id: string]: string }>({
@@ -62,7 +58,6 @@ const Login: React.FC<LoginProps> = ({ logoSrc, logoAlt = 'Company Logo' }) => {
   ) {
     try {
       if (initial) setLoadingFiles(true);
-      setLoadingMore(!initial);
       let url = `https://www.googleapis.com/drive/v3/files?pageSize=20&fields=nextPageToken,files(id,name,mimeType,thumbnailLink,webViewLink,parents)`;
       url += `&q='${folderId}' in parents and trashed=false`;
       if (pageToken) url += `&pageToken=${pageToken}`;
@@ -75,13 +70,9 @@ const Login: React.FC<LoginProps> = ({ logoSrc, logoAlt = 'Company Logo' }) => {
       setFiles((prev) =>
         initial ? data.files || [] : [...prev, ...(data.files || [])],
       );
-      setNextPageToken(data.nextPageToken || null);
-      setLoadingFiles(false);
-      setLoadingMore(false);
     } catch (err) {
       setFileError('Failed to fetch Google Drive files');
       setLoadingFiles(false);
-      setLoadingMore(false);
     }
   }
 
@@ -116,29 +107,6 @@ const Login: React.FC<LoginProps> = ({ logoSrc, logoAlt = 'Company Logo' }) => {
   const filteredFiles = files.filter((file) =>
     file.name.toLowerCase().includes(search.toLowerCase()),
   );
-
-  const handleCreateAccount = () => {
-    navigate('/registerform');
-  };
-
-  const handleForgotPassword = () => {
-    navigate('/forgotpassword');
-  };
-
-  const handleOpenFolder = (folder: DriveFile) => {
-    setParentStack((prev) => [...prev, currentFolder]);
-    setCurrentFolder(folder.id);
-    setFolderNames((prev) => ({ ...prev, [folder.id]: folder.name }));
-  };
-
-  const handleBack = () => {
-    if (parentStack.length > 0) {
-      const prevStack = [...parentStack];
-      const parentId = prevStack.pop() || 'root';
-      setParentStack(prevStack);
-      setCurrentFolder(parentId);
-    }
-  };
 
   // Helper to download a file using fetch + Blob
   async function downloadFileWithToken(
@@ -179,28 +147,6 @@ const Login: React.FC<LoginProps> = ({ logoSrc, logoAlt = 'Company Logo' }) => {
       }
     });
   };
-
-  const fields: FieldConfig[] = [
-    {
-      name: 'email',
-      label: 'Email address',
-      type: 'email',
-      placeholder: 'Enter your email',
-      required: true,
-    },
-    {
-      name: 'password',
-      label: 'Password',
-      type: 'password',
-      placeholder: 'Enter your password',
-      required: true,
-    },
-    {
-      name: 'rememberMe',
-      label: 'Remember me',
-      type: 'checkbox',
-    },
-  ];
 
   const handleSubmit = async (values: Record<string, string>) => {
     try {

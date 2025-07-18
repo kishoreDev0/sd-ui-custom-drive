@@ -15,12 +15,10 @@ import {
   Trash2,
   Share2,
   FolderOpen,
-
   Users,
   Search,
   ChevronDown,
 } from 'lucide-react';
-import mammoth from 'mammoth';
 import { ChevronRight, Filter } from 'lucide-react';
 import {
   DropdownMenu,
@@ -63,9 +61,21 @@ const FILE_TYPES = {
   GOOGLE_SLIDE: 'application/vnd.google-apps.presentation',
 } as const;
 
+// Define a type for Google Drive files
+interface DriveFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  thumbnailLink?: string;
+  webViewLink?: string;
+  parents?: string[];
+  shared?: boolean;
+  owners?: Array<{ displayName?: string; emailAddress?: string }>;
+}
+
 // Custom hook for file preview functionality
 const useFilePreview = () => {
-  const [previewFile, setPreviewFile] = useState<any | null>(null);
+  const [previewFile, setPreviewFile] = useState<DriveFile | null>(null);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<string>('');
   const [previewUrl, setPreviewUrl] = useState<string>('');
@@ -101,7 +111,7 @@ const useFilePreview = () => {
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [files, setFiles] = useState<any[]>([]);
+  const [files, setFiles] = useState<DriveFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -109,7 +119,6 @@ const Dashboard: React.FC = () => {
     null,
   );
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [currentFolder, setCurrentFolder] = useState<string>('root');
   const [parentStack, setParentStack] = useState<string[]>([]);
   const [folderNames, setFolderNames] = useState<{ [id: string]: string }>({
@@ -139,12 +148,12 @@ const Dashboard: React.FC = () => {
   } = useFilePreview();
 
   // Share modal state
-  const [shareFile, setShareFile] = useState<any | null>(null);
+  const [shareFile, setShareFile] = useState<DriveFile | null>(null);
   const [shareEmail, setShareEmail] = useState('');
   const [shareRole, setShareRole] = useState('reader');
 
   // Enhanced file type detection
-  const isSpreadsheetFile = (file: any): boolean => {
+  const isSpreadsheetFile = (file: DriveFile): boolean => {
     const mime = file.mimeType;
     const ext = getFileExtension(file.name);
     return (
@@ -159,7 +168,7 @@ const Dashboard: React.FC = () => {
   };
 
   // Check if file can be previewed
-  const canPreviewFile = (file: any): boolean => {
+  const canPreviewFile = (file: DriveFile): boolean => {
     const mime = file.mimeType;
 
     // Images
@@ -189,7 +198,7 @@ const Dashboard: React.FC = () => {
     return false;
   };
 
-  const isPresentationFile = (file: any): boolean => {
+  const isPresentationFile = (file: DriveFile): boolean => {
     const mime = file.mimeType;
     const ext = getFileExtension(file.name);
     return (
@@ -201,7 +210,7 @@ const Dashboard: React.FC = () => {
     );
   };
 
-  const isDocumentFile = (file: any): boolean => {
+  const isDocumentFile = (file: DriveFile): boolean => {
     const mime = file.mimeType;
     const ext = getFileExtension(file.name);
     return (
@@ -362,7 +371,7 @@ const Dashboard: React.FC = () => {
     { label: 'Folders', value: 'folders' },
   ];
 
-  const getFileTypeCategory = (file: any) => {
+  const getFileTypeCategory = (file: DriveFile) => {
     const mime = file.mimeType;
     const ext = getFileExtension(file.name);
     if (mime === FOLDER_MIME) return 'folders';
@@ -407,14 +416,6 @@ const Dashboard: React.FC = () => {
   });
 
   const itemsPerPage = 20;
-  // User info from localStorage
-  const userInfo = (() => {
-    try {
-      return JSON.parse(localStorage.getItem('userInfo') || '{}');
-    } catch {
-      return {};
-    }
-  })();
 
   // Logout confirmation state
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -464,9 +465,6 @@ const Dashboard: React.FC = () => {
       const data = await res.json();
       setFiles(initial ? data.files || [] : [...files, ...(data.files || [])]);
       setNextPageToken(data.nextPageToken || null);
-      setTotalPages(
-        typeof nextPageToken === 'string' ? currentPage + 1 : currentPage,
-      );
       setLoading(false);
     } catch (err) {
       setError('Failed to fetch Google Drive files');
@@ -497,9 +495,6 @@ const Dashboard: React.FC = () => {
       const data = await res.json();
       setFiles(initial ? data.files || [] : [...files, ...(data.files || [])]);
       setNextPageToken(data.nextPageToken || null);
-      setTotalPages(
-        typeof nextPageToken === 'string' ? currentPage + 1 : currentPage,
-      );
       setLoading(false);
     } catch (err) {
       setError('Failed to fetch shared files');
@@ -512,14 +507,19 @@ const Dashboard: React.FC = () => {
     return fileName.split('.').pop()?.toLowerCase() || '';
   }
 
-  function getFileIcon(file: any): JSX.Element {
+  function getFileIcon(file: DriveFile): JSX.Element {
     const mimeType = file.mimeType;
     const extension = getFileExtension(file.name);
-    if (mimeType === FOLDER_MIME) return <img src={openFolderIcon} alt="Folder" className="w-7 h-7" />;
-    if (mimeType.startsWith('image/')) return <img src={imgIcon} alt="Image" className="w-7 h-7" />;
-    if (mimeType === 'application/pdf') return <img src={pdfIcon} alt="PDF" className="w-7 h-7" />;
-    if (mimeType.startsWith('video/')) return <img src={videoIcon} alt="Video" className="w-7 h-7" />;
-    if (mimeType.startsWith('audio/')) return <img src={audioIcon} alt="Audio" className="w-7 h-7" />;
+    if (mimeType === FOLDER_MIME)
+      return <img src={openFolderIcon} alt="Folder" className="w-7 h-7" />;
+    if (mimeType.startsWith('image/'))
+      return <img src={imgIcon} alt="Image" className="w-7 h-7" />;
+    if (mimeType === 'application/pdf')
+      return <img src={pdfIcon} alt="PDF" className="w-7 h-7" />;
+    if (mimeType.startsWith('video/'))
+      return <img src={videoIcon} alt="Video" className="w-7 h-7" />;
+    if (mimeType.startsWith('audio/'))
+      return <img src={audioIcon} alt="Audio" className="w-7 h-7" />;
     const extMap: { [key: string]: string } = {
       doc: wordIcon,
       docx: wordIcon,
@@ -543,7 +543,7 @@ const Dashboard: React.FC = () => {
     return <img src={icon} alt={extension + ' file'} className="w-7 h-7" />;
   }
 
-  function formatFileType(file: any): string {
+  function formatFileType(file: DriveFile): string {
     const mimeType = file.mimeType;
     const extension = getFileExtension(file.name);
 
@@ -578,7 +578,7 @@ const Dashboard: React.FC = () => {
   }
 
   // Enhanced preview logic with comprehensive file type support
-  const handlePreview = async (file: any) => {
+  const handlePreview = async (file: DriveFile) => {
     setPreviewFile(file);
     setPreviewContent(null);
     setPreviewType(file.mimeType);
@@ -625,7 +625,9 @@ const Dashboard: React.FC = () => {
         file.mimeType === FILE_TYPES.PPT ||
         file.name.endsWith('.ppt')
       ) {
-        setPreviewUrl(`https://docs.google.com/presentation/d/${file.id}/preview`);
+        setPreviewUrl(
+          `https://docs.google.com/presentation/d/${file.id}/preview`,
+        );
         setPreviewType('gslides-embed');
         setPreviewContent(null);
         setPreviewLoading(false);
@@ -663,12 +665,12 @@ const Dashboard: React.FC = () => {
       else if (isSpreadsheetFile(file)) {
         if (file.mimeType === FILE_TYPES.CSV || file.name.endsWith('.csv')) {
           // Handle CSV files
-        const res = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
-          {
-            headers: { Authorization: 'Bearer ' + googleToken },
-          },
-        );
+          const res = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
+            {
+              headers: { Authorization: 'Bearer ' + googleToken },
+            },
+          );
           if (!res.ok)
             throw new Error('Preview not allowed or file not found.');
           const text = await res.text();
@@ -716,8 +718,8 @@ const Dashboard: React.FC = () => {
           );
           if (!res.ok)
             throw new Error('Preview not allowed or file not found.');
-        const blob = await res.blob();
-        setPreviewUrl(URL.createObjectURL(blob));
+          const blob = await res.blob();
+          setPreviewUrl(URL.createObjectURL(blob));
           setPreviewType('application/pdf');
         } else {
           // For PowerPoint files, we'll show a message that they need to be downloaded
@@ -778,7 +780,9 @@ const Dashboard: React.FC = () => {
       ) {
         // Try to preview as PDF if available (for Google Drive exported files)
         // Otherwise, fallback to mammoth or docx-preview in the future
-        setPreviewError('Preview as PDF is not available for this DOCX file. Download to view.');
+        setPreviewError(
+          'Preview as PDF is not available for this DOCX file. Download to view.',
+        );
         setPreviewLoading(false);
         return;
       }
@@ -816,7 +820,7 @@ const Dashboard: React.FC = () => {
     previewError,
     previewLoading,
   }: {
-    file: any;
+    file: DriveFile;
     previewType: string;
     previewContent: string | null;
     previewUrl: string;
@@ -830,11 +834,24 @@ const Dashboard: React.FC = () => {
     if (previewError) {
       return (
         <div className="flex flex-col items-center justify-center h-full text-center p-8">
-          <h2 className="text-2xl font-bold mb-2" style={{ fontFamily: 'calibri, tahoma, verdana, arial, sans serif', color: '#444' }}>
+          <h2
+            className="text-2xl font-bold mb-2"
+            style={{
+              fontFamily: 'calibri, tahoma, verdana, arial, sans serif',
+              color: '#444',
+            }}
+          >
             We can't process this request
           </h2>
-          <p className="text-gray-600 mb-4" style={{ fontFamily: 'calibri, tahoma, verdana, arial, sans serif', color: '#444' }}>
-            We're sorry, but for some reason we can't open this for you.<br />
+          <p
+            className="text-gray-600 mb-4"
+            style={{
+              fontFamily: 'calibri, tahoma, verdana, arial, sans serif',
+              color: '#444',
+            }}
+          >
+            We're sorry, but for some reason we can't open this for you.
+            <br />
             {previewError}
           </p>
           <a
@@ -842,7 +859,11 @@ const Dashboard: React.FC = () => {
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-600 underline"
-            style={{ fontFamily: 'calibri, tahoma, verdana, arial, sans serif', fontSize: '10pt', paddingTop: '1em' }}
+            style={{
+              fontFamily: 'calibri, tahoma, verdana, arial, sans serif',
+              fontSize: '10pt',
+              paddingTop: '1em',
+            }}
           >
             Learn more
           </a>
@@ -883,18 +904,29 @@ const Dashboard: React.FC = () => {
     }
 
     // For DOCX, PDF, and other supported formats
-    if ((previewType === 'application/pdf' || previewType === 'docx' || previewType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || previewType === 'application/msword') && previewUrl) {
+    if (
+      (previewType === 'application/pdf' ||
+        previewType === 'docx' ||
+        previewType ===
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        previewType === 'application/msword') &&
+      previewUrl
+    ) {
       const documents = [
         {
           uri: previewUrl,
-          fileType: previewType === 'docx' ? 'docx' : previewType.split('/').pop(),
+          fileType:
+            previewType === 'docx' ? 'docx' : previewType.split('/').pop(),
           fileName: previewFile?.name || 'Document',
         },
       ];
-    
+
       return (
         <div className="w-full h-full">
-          <DocViewer documents={documents} pluginRenderers={DocViewerRenderers} />
+          <DocViewer
+            documents={documents}
+            pluginRenderers={DocViewerRenderers}
+          />
         </div>
       );
     }
@@ -953,7 +985,6 @@ const Dashboard: React.FC = () => {
     if (previewType === 'gdoc-embed' && previewUrl && previewFile) {
       return (
         <div className="w-full h-full flex flex-col items-center justify-center">
-          
           <iframe
             src={previewUrl}
             title="Google Docs Preview"
@@ -961,7 +992,9 @@ const Dashboard: React.FC = () => {
             allow="autoplay"
           />
           <div className="text-xs text-gray-500 mt-2 text-center">
-            If you see a permission error, make sure the file is shared with your Google account or is public.<br />
+            If you see a permission error, make sure the file is shared with
+            your Google account or is public.
+            <br />
             <a
               href={`https://docs.google.com/document/d/${previewFile.id}/edit`}
               target="_blank"
@@ -984,7 +1017,9 @@ const Dashboard: React.FC = () => {
             allow="autoplay"
           />
           <div className="text-xs text-gray-500 mt-2 text-center">
-            If you see a permission error, make sure the file is shared with your Google account or is public.<br />
+            If you see a permission error, make sure the file is shared with
+            your Google account or is public.
+            <br />
             <a
               href={`https://docs.google.com/presentation/d/${previewFile.id}/edit`}
               target="_blank"
@@ -1067,7 +1102,7 @@ const Dashboard: React.FC = () => {
     file,
     onClose,
   }: {
-    file: any;
+    file: DriveFile;
     onClose: () => void;
   }) => {
     // Keyboard shortcuts
@@ -1163,7 +1198,7 @@ const Dashboard: React.FC = () => {
   };
 
   // Improved download logic
-  async function downloadFileWithToken(file: any, accessToken: string) {
+  async function downloadFileWithToken(file: DriveFile, accessToken: string) {
     if (!accessToken) {
       showSnackbar('Authentication required to download file.', 'error');
       return;
@@ -1214,7 +1249,7 @@ const Dashboard: React.FC = () => {
     resetPreview();
   };
 
-  const handleOpenFolder = (folder: any) => {
+  const handleOpenFolder = (folder: DriveFile) => {
     setParentStack((prev) => [...prev, currentFolder]);
     setCurrentFolder(folder.id);
     setFolderNames((prev) => ({ ...prev, [folder.id]: folder.name }));
@@ -1304,14 +1339,14 @@ const Dashboard: React.FC = () => {
   );
 
   // Add state for modals
-  const [renameFile, setRenameFile] = useState<any | null>(null);
+  const [renameFile, setRenameFile] = useState<DriveFile | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  const [deleteFile, setDeleteFile] = useState<any | null>(null);
-  const [moveFile, setMoveFile] = useState<any | null>(null);
+  const [deleteFile, setDeleteFile] = useState<DriveFile | null>(null);
+  const [moveFile, setMoveFile] = useState<DriveFile | null>(null);
   const [moveTarget, setMoveTarget] = useState('');
 
   // Helper: Get all folders for move dropdown
-  const allFolders = files.filter(f => f.mimeType === FOLDER_MIME);
+  const allFolders = files.filter((f) => f.mimeType === FOLDER_MIME);
 
   // Rename handler
   async function handleRename() {
@@ -1323,14 +1358,17 @@ const Dashboard: React.FC = () => {
       return;
     }
     try {
-      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${renameFile.id}`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: 'Bearer ' + googleToken,
-          'Content-Type': 'application/json',
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${renameFile.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: 'Bearer ' + googleToken,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ name: renameValue.trim() }),
         },
-        body: JSON.stringify({ name: renameValue.trim() }),
-      });
+      );
       if (!res.ok) throw new Error('Failed to rename');
       setRenameFile(null);
       setRenameValue('');
@@ -1356,10 +1394,13 @@ const Dashboard: React.FC = () => {
       return;
     }
     try {
-      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${deleteFile.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: 'Bearer ' + googleToken },
-      });
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${deleteFile.id}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: 'Bearer ' + googleToken },
+        },
+      );
       if (!res.ok) throw new Error('Failed to delete');
       setDeleteFile(null);
       showSnackbar('Deleted successfully!', 'success');
@@ -1384,14 +1425,17 @@ const Dashboard: React.FC = () => {
       return;
     }
     try {
-      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${moveFile.id}`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: 'Bearer ' + googleToken,
-          'Content-Type': 'application/json',
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${moveFile.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: 'Bearer ' + googleToken,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ parents: [moveTarget] }),
         },
-        body: JSON.stringify({ parents: [moveTarget] }),
-      });
+      );
       if (!res.ok) throw new Error('Failed to move');
       setMoveFile(null);
       setMoveTarget('');
@@ -1467,7 +1511,7 @@ const Dashboard: React.FC = () => {
                 <input
                   type="text"
                   value={search}
-                  onChange={e => setSearch(e.target.value)}
+                  onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search in Drive"
                   className="w-full pl-12 pr-12 py-2.5 rounded-full border border-gray-200 bg-white text-gray-800 placeholder-gray-400 shadow focus:border-blue-500 focus:ring-2 focus:ring-blue-100 focus:outline-none transition"
                   aria-label="Search files and folders"
@@ -1488,24 +1532,29 @@ const Dashboard: React.FC = () => {
             <div className="flex items-center sm:ml-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button
-                    className="flex items-center gap-2 px-4 py-2 rounded-full border border-gray-200 bg-white shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 transition"
-                  >
+                  <button className="flex items-center gap-2 px-4 py-2 rounded-full border border-gray-200 bg-white shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 transition">
                     <Filter className="w-4 h-4 text-gray-400" />
-                    <span className="hidden sm:inline">{FILE_TYPE_FILTERS.find(f => f.value === fileTypeFilter)?.label || 'All'}</span>
+                    <span className="hidden sm:inline">
+                      {FILE_TYPE_FILTERS.find((f) => f.value === fileTypeFilter)
+                        ?.label || 'All'}
+                    </span>
                     <ChevronDown className="w-4 h-4 text-gray-400" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[160px]">
-                  {FILE_TYPE_FILTERS.map(opt => (
+                  {FILE_TYPE_FILTERS.map((opt) => (
                     <DropdownMenuItem
                       key={opt.value}
                       onClick={() => setFileTypeFilter(opt.value)}
-                      className={fileTypeFilter === opt.value ? 'bg-blue-50 text-blue-700 font-semibold' : ''}
+                      className={
+                        fileTypeFilter === opt.value
+                          ? 'bg-blue-50 text-blue-700 font-semibold'
+                          : ''
+                      }
                     >
-                    {opt.label}
+                      {opt.label}
                     </DropdownMenuItem>
-                ))}
+                  ))}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -1595,7 +1644,7 @@ const Dashboard: React.FC = () => {
                         >
                           {/* Folder Icon with Shared Badge */}
                           <div className="relative mr-4">
-                            <div className="w-9 h-9 rounded-lg bg-gray-700 flex items-center justify-center text-white">
+                            <div className="w-9 h-9 rounded-lg  flex items-center justify-center text-white">
                               <span className="text-lg">📁</span>
                             </div>
                             {file.owners?.length > 1 || file.shared ? (
@@ -1653,14 +1702,14 @@ const Dashboard: React.FC = () => {
               )}
               {/* Main grid of files/folders (make more responsive, flex for mobile, grid for desktop) */}
               <div className="flex flex-wrap gap-4">
-              {filteredFiles
-                .slice(
-                  (currentPage - 1) * itemsPerPage,
-                  currentPage * itemsPerPage,
-                )
-                .map((file) => (
-                  <div
-                    key={file.id}
+                {filteredFiles
+                  .slice(
+                    (currentPage - 1) * itemsPerPage,
+                    currentPage * itemsPerPage,
+                  )
+                  .map((file) => (
+                    <div
+                      key={file.id}
                       className="w-full sm:w-[48%] lg:w-[32%] flex items-center justify-between px-4 py-3 bg-[#f4f7fb] rounded-xl cursor-pointer hover:shadow-sm transition-all"
                       onClick={() => {
                         if (file.mimeType === FOLDER_MIME) {
@@ -1678,7 +1727,7 @@ const Dashboard: React.FC = () => {
                     >
                       {/* Left - Icon and Info */}
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-md bg-gray-700 flex items-center justify-center text-white">
+                        <div className="w-10 h-10 rounded-md  flex items-center justify-center text-white">
                           <span className="text-sm">{getFileIcon(file)}</span>
                         </div>
                         <div>
@@ -1710,14 +1759,14 @@ const Dashboard: React.FC = () => {
                           >
                             {file.mimeType !== FOLDER_MIME &&
                               canPreviewFile(file) && (
-                              <DropdownMenuItem
-                                onClick={() => handlePreview(file)}
-                              >
+                                <DropdownMenuItem
+                                  onClick={() => handlePreview(file)}
+                                >
                                   <FolderOpen className="w-4 h-4 mr-2" />{' '}
                                   Preview
-                              </DropdownMenuItem>
-                            )}
-                            
+                                </DropdownMenuItem>
+                              )}
+
                             <DropdownMenuItem
                               onClick={() =>
                                 downloadFileWithToken(
@@ -1760,28 +1809,43 @@ const Dashboard: React.FC = () => {
                               soon)
                             </DropdownMenuItem>
                             {file.mimeType !== FOLDER_MIME &&
-                              (['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'application/vnd.google-apps.spreadsheet'].includes(file.mimeType) || ['csv', 'xlsx', 'xls'].includes(getFileExtension(file.name))) && (
+                              ([
+                                'text/csv',
+                                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                                'application/vnd.ms-excel',
+                                'application/vnd.google-apps.spreadsheet',
+                              ].includes(file.mimeType) ||
+                                ['csv', 'xlsx', 'xls'].includes(
+                                  getFileExtension(file.name),
+                                )) && (
                                 <DropdownMenuItem asChild>
                                   <a
                                     href={
-                                      file.mimeType === 'application/vnd.google-apps.spreadsheet'
+                                      file.mimeType ===
+                                      'application/vnd.google-apps.spreadsheet'
                                         ? `https://docs.google.com/spreadsheets/d/${file.id}/edit`
-                                        : file.webViewLink || `https://docs.google.com/spreadsheets/u/0/?usp=drive_web&ouid=1234567890#gid=0`
+                                        : file.webViewLink ||
+                                          `https://docs.google.com/spreadsheets/u/0/?usp=drive_web&ouid=1234567890#gid=0`
                                     }
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex items-center"
                                   >
-                                    <img src={excelIcon} alt="Open in Google Sheets" className="w-4 h-4 mr-2" /> Open in Google Sheets
+                                    <img
+                                      src={excelIcon}
+                                      alt="Open in Google Sheets"
+                                      className="w-4 h-4 mr-2"
+                                    />{' '}
+                                    Open in Google Sheets
                                   </a>
                                 </DropdownMenuItem>
                               )}
                           </DropdownMenuContent>
                         </DropdownMenu>
+                      </div>
                     </div>
-                  </div>
-                ))}
-            </div>
+                  ))}
+              </div>
             </>
           )}
 
@@ -1937,12 +2001,22 @@ const Dashboard: React.FC = () => {
             <input
               className="w-full border rounded px-3 py-2 mb-4"
               value={renameValue}
-              onChange={e => setRenameValue(e.target.value)}
+              onChange={(e) => setRenameValue(e.target.value)}
               autoFocus
             />
             <div className="flex gap-3 justify-center">
-              <button className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300" onClick={() => setRenameFile(null)}>Cancel</button>
-              <button className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700" onClick={handleRename}>Rename</button>
+              <button
+                className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                onClick={() => setRenameFile(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                onClick={handleRename}
+              >
+                Rename
+              </button>
             </div>
           </div>
         </div>
@@ -1951,10 +2025,23 @@ const Dashboard: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-xs text-center">
             <h3 className="text-lg font-semibold mb-4">Delete</h3>
-            <p className="mb-6">Are you sure you want to delete <span className="font-semibold">{deleteFile.name}</span>?</p>
+            <p className="mb-6">
+              Are you sure you want to delete{' '}
+              <span className="font-semibold">{deleteFile.name}</span>?
+            </p>
             <div className="flex gap-3 justify-center">
-              <button className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300" onClick={() => setDeleteFile(null)}>Cancel</button>
-              <button className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700" onClick={handleDelete}>Delete</button>
+              <button
+                className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                onClick={() => setDeleteFile(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700"
+                onClick={handleDelete}
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>
@@ -1966,16 +2053,31 @@ const Dashboard: React.FC = () => {
             <select
               className="w-full border rounded px-3 py-2 mb-4"
               value={moveTarget}
-              onChange={e => setMoveTarget(e.target.value)}
+              onChange={(e) => setMoveTarget(e.target.value)}
             >
               <option value="">Select folder...</option>
-              {allFolders.filter(f => f.id !== moveFile.id).map(f => (
-                <option key={f.id} value={f.id}>{f.name}</option>
-              ))}
+              {allFolders
+                .filter((f) => f.id !== moveFile.id)
+                .map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
             </select>
             <div className="flex gap-3 justify-center">
-              <button className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300" onClick={() => setMoveFile(null)}>Cancel</button>
-              <button className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700" onClick={handleMove} disabled={!moveTarget}>Move</button>
+              <button
+                className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                onClick={() => setMoveFile(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                onClick={handleMove}
+                disabled={!moveTarget}
+              >
+                Move
+              </button>
             </div>
           </div>
         </div>

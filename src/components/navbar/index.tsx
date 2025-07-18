@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
-import menuIcon from '@/assets/vite.svg';
 import chevronIcon from '@/assets/react.svg';
 import searchIcon from '@/assets/googleLogo.png';
 import { useNavigate } from 'react-router-dom';
-// import Logo from '../../assets/google-drive-logo.svg'; // Placeholder for Google Drive logo
 import userlogo from '../../assets/user-image.jpg';
 import Modal from '../modal';
 import InviteUserForm from '../invite-user';
@@ -19,14 +17,13 @@ const Navbar: React.FC = () => {
   const [isConfirmModalOpen, setConfirmModalOpen] = useState<boolean>(false);
   const [dropdownOpen, setDropdownOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [isScrolled, setIsScrolled] = useState<boolean>(false);
   const user = useAppSelector((state) => state.auth?.user);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 10);
+      // setIsScrolled(window.scrollY > 10); // This line was removed
     };
 
     window.addEventListener('scroll', handleScroll);
@@ -89,11 +86,7 @@ const Navbar: React.FC = () => {
     }
   })();
   const displayName = userInfo.name;
-  alert(displayName);
-  const email = userInfo.email || user?.email || '';
-  const avatar = userInfo.picture || '';
   const profileImage = userData.profileUrl || userData.picture || userlogo;
-  const userRole = userData.roleId ? `Role: ${userData.roleId}` : 'User';
 
   return (
     <nav
@@ -147,7 +140,11 @@ const Navbar: React.FC = () => {
                     onError={(e) => (e.currentTarget.src = userlogo)}
                   />
                 </div>
-                <img src={chevronIcon} alt="Chevron" className={`ml-1 hidden sm:block transition-transform duration-200 ${dropdownOpen ? 'transform rotate-180' : ''} text-gray-600 w-4 h-4`} />
+                <img
+                  src={chevronIcon}
+                  alt="Chevron"
+                  className={`ml-1 hidden sm:block transition-transform duration-200 ${dropdownOpen ? 'transform rotate-180' : ''} text-gray-600 w-4 h-4`}
+                />
               </div>
               <div
                 className={`absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 transition-all duration-200 transform origin-top-right ${

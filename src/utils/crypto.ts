@@ -10,4 +10,4 @@ export function encryptToken(token: string): string {
 export function decryptToken(ciphertext: string): string {
   const bytes = CryptoJS.AES.decrypt(ciphertext, SECRET_KEY);
   return bytes.toString(CryptoJS.enc.Utf8);
-} 
+}

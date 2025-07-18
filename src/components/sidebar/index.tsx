@@ -100,7 +100,11 @@ const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => setSidebarOpen(false)}
             aria-label="Close sidebar"
           >
-            <img src={closeIcon} alt="Close" className="w-5 h-5 text-gray-700" />
+            <img
+              src={closeIcon}
+              alt="Close"
+              className="w-5 h-5 text-gray-700"
+            />
           </button>
         </div>
 
@@ -121,7 +125,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                 setCurrentPage(1);
               }}
             >
-              <img src={openFolderIcon} alt="My Drive" className="h-5 w-5 mr-3" />
+              <img
+                src={openFolderIcon}
+                alt="My Drive"
+                className="h-5 w-5 mr-3"
+              />
               My Drive
             </button>
 
@@ -138,7 +146,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                 setCurrentPage(1);
               }}
             >
-              <img src={organizationIcon} alt="Shared" className="h-5 w-5 mr-3" />
+              <img
+                src={organizationIcon}
+                alt="Shared"
+                className="h-5 w-5 mr-3"
+              />
               Shared with Me
             </button>
           </nav>
