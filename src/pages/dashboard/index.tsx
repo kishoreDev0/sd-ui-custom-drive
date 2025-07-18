@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import * as XLSX from 'xlsx';
 import { decryptToken } from '@/utils/crypto';
+import DocViewer, { DocViewerRenderers } from 'react-doc-viewer';
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
@@ -634,6 +635,49 @@ const Dashboard: React.FC = () => {
     }
 
     try {
+      // Google Docs and DOCX: use Google Docs embedded viewer
+      if (
+        file.mimeType === FILE_TYPES.GOOGLE_DOC ||
+        file.mimeType === FILE_TYPES.DOCX ||
+        file.name.endsWith('.docx') ||
+        file.mimeType === 'application/msword'
+      ) {
+        setPreviewUrl(`https://docs.google.com/document/d/${file.id}/preview`);
+        setPreviewType('gdoc-embed');
+        setPreviewContent(null);
+        setPreviewLoading(false);
+        return;
+      }
+      // Google Slides and PPT/PPTX: use Google Slides embedded viewer
+      else if (
+        file.mimeType === FILE_TYPES.GOOGLE_SLIDE ||
+        file.mimeType === FILE_TYPES.PPTX ||
+        file.name.endsWith('.pptx') ||
+        file.mimeType === FILE_TYPES.PPT ||
+        file.name.endsWith('.ppt')
+      ) {
+        setPreviewUrl(`https://docs.google.com/presentation/d/${file.id}/preview`);
+        setPreviewType('gslides-embed');
+        setPreviewContent(null);
+        setPreviewLoading(false);
+        return;
+      }
+      // PDF: use iframe
+      else if (file.mimeType === FILE_TYPES.PDF || file.name.endsWith('.pdf')) {
+        const res = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
+          {
+            headers: { Authorization: 'Bearer ' + googleToken },
+          },
+        );
+        if (!res.ok) throw new Error('Preview not allowed or file not found.');
+        const blob = await res.blob();
+        setPreviewUrl(URL.createObjectURL(blob));
+        setPreviewType('pdf-iframe');
+        setPreviewContent(null);
+        setPreviewLoading(false);
+        return;
+      }
       // Image files
       if (file.mimeType.startsWith('image/')) {
         const res = await fetch(
@@ -645,32 +689,6 @@ const Dashboard: React.FC = () => {
         if (!res.ok) throw new Error('Preview not allowed or file not found.');
         const blob = await res.blob();
         setPreviewUrl(URL.createObjectURL(blob));
-      }
-      // PDF files
-      else if (file.mimeType === FILE_TYPES.PDF) {
-        const res = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
-          {
-            headers: { Authorization: 'Bearer ' + googleToken },
-          },
-        );
-        if (!res.ok) throw new Error('Preview not allowed or file not found.');
-        const blob = await res.blob();
-        setPreviewUrl(URL.createObjectURL(blob));
-      }
-      // Word documents (DOCX)
-      else if (isDocumentFile(file)) {
-        const res = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
-          {
-            headers: { Authorization: 'Bearer ' + googleToken },
-          },
-        );
-        if (!res.ok) throw new Error('Preview not allowed or file not found.');
-        const arrayBuffer = await res.arrayBuffer();
-        const { value: html } = await mammoth.convertToHtml({ arrayBuffer });
-        setPreviewContent(html);
-        setPreviewType('docx');
       }
       // Spreadsheet files (XLSX, XLS, CSV)
       else if (isSpreadsheetFile(file)) {
@@ -776,19 +794,24 @@ const Dashboard: React.FC = () => {
         const text = await res.text();
         setPreviewContent(text);
       }
-      // Google Docs
+      // Google Docs: always preview using Google Docs embedded viewer
       else if (file.mimeType === FILE_TYPES.GOOGLE_DOC) {
-        // Export as PDF for preview
-        const res = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=application/pdf`,
-          {
-            headers: { Authorization: 'Bearer ' + googleToken },
-          },
-        );
-        if (!res.ok) throw new Error('Preview not allowed or file not found.');
-        const blob = await res.blob();
-        setPreviewUrl(URL.createObjectURL(blob));
-        setPreviewType('application/pdf');
+        setPreviewUrl(`https://docs.google.com/document/d/${file.id}/preview`);
+        setPreviewType('gdoc-embed');
+        setPreviewContent(null);
+        setPreviewLoading(false);
+        return;
+      }
+      // DOCX: preview as PDF if possible (future: use docx-preview for better fidelity)
+      else if (
+        file.mimeType === FILE_TYPES.DOCX ||
+        file.name.endsWith('.docx')
+      ) {
+        // Try to preview as PDF if available (for Google Drive exported files)
+        // Otherwise, fallback to mammoth or docx-preview in the future
+        setPreviewError('Preview as PDF is not available for this DOCX file. Download to view.');
+        setPreviewLoading(false);
+        return;
       }
       // Unsupported file types
       else {
@@ -838,37 +861,22 @@ const Dashboard: React.FC = () => {
     if (previewError) {
       return (
         <div className="flex flex-col items-center justify-center h-full text-center p-8">
-          <div className="text-red-500 mb-6">
-            <svg
-              className="w-16 h-16 mx-auto mb-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-              />
-            </svg>
-            <p className="text-lg font-medium mb-2">Preview Failed</p>
-            <p className="text-sm text-gray-600 mb-6 max-w-md">
-              {previewError}
-            </p>
-          </div>
-          <Button
-            onClick={() =>
-              downloadFileWithToken(
-                file,
-                localStorage.getItem('googleAccessToken')!,
-              )
-            }
-            className="flex items-center gap-2"
+          <h2 className="text-2xl font-bold mb-2" style={{ fontFamily: 'calibri, tahoma, verdana, arial, sans serif', color: '#444' }}>
+            We can't process this request
+          </h2>
+          <p className="text-gray-600 mb-4" style={{ fontFamily: 'calibri, tahoma, verdana, arial, sans serif', color: '#444' }}>
+            We're sorry, but for some reason we can't open this for you.<br />
+            {previewError}
+          </p>
+          <a
+            href="https://support.microsoft.com/en-us/office/file-types-supported-by-office-for-the-web-f0d8d31c-67c5-4f0b-8b3d-51e1a0b7b2fa"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 underline"
+            style={{ fontFamily: 'calibri, tahoma, verdana, arial, sans serif', fontSize: '10pt', paddingTop: '1em' }}
           >
-            <Download className="w-4 h-4" />
-            Download File
-          </Button>
+            Learn more
+          </a>
         </div>
       );
     }
@@ -905,16 +913,19 @@ const Dashboard: React.FC = () => {
       );
     }
 
-    if (previewType === 'application/pdf' && previewUrl) {
+    // For DOCX, PDF, and other supported formats
+    if ((previewType === 'application/pdf' || previewType === 'docx' || previewType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || previewType === 'application/msword') && previewUrl) {
+      const documents = [
+        {
+          uri: previewUrl,
+          fileType: previewType === 'docx' ? 'docx' : previewType.split('/').pop(),
+          fileName: previewFile?.name || 'Document',
+        },
+      ];
+    
       return (
-        <div className="w-full h-full p-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden h-full">
-            <iframe
-              src={previewUrl}
-              title="PDF Preview"
-              className="w-full h-full rounded border-0"
-            />
-          </div>
+        <div className="w-full h-full">
+          <DocViewer documents={documents} pluginRenderers={DocViewerRenderers} />
         </div>
       );
     }
@@ -966,6 +977,66 @@ const Dashboard: React.FC = () => {
               {previewContent}
             </pre>
           </div>
+        </div>
+      );
+    }
+
+    if (previewType === 'gdoc-embed' && previewUrl && previewFile) {
+      return (
+        <div className="w-full h-full flex flex-col items-center justify-center">
+          
+          <iframe
+            src={previewUrl}
+            title="Google Docs Preview"
+            className="w-full h-[70vh] min-h-[400px] rounded border bg-white"
+            allow="autoplay"
+          />
+          <div className="text-xs text-gray-500 mt-2 text-center">
+            If you see a permission error, make sure the file is shared with your Google account or is public.<br />
+            <a
+              href={`https://docs.google.com/document/d/${previewFile.id}/edit`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline mt-2 inline-block"
+            >
+              Open in Google Docs
+            </a>
+          </div>
+        </div>
+      );
+    }
+    if (previewType === 'gslides-embed' && previewUrl && previewFile) {
+      return (
+        <div className="w-full h-full flex flex-col items-center justify-center">
+          <iframe
+            src={previewUrl}
+            title="Google Slides Preview"
+            className="w-full h-[70vh] min-h-[400px] rounded border bg-white"
+            allow="autoplay"
+          />
+          <div className="text-xs text-gray-500 mt-2 text-center">
+            If you see a permission error, make sure the file is shared with your Google account or is public.<br />
+            <a
+              href={`https://docs.google.com/presentation/d/${previewFile.id}/edit`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline mt-2 inline-block"
+            >
+              Open in Google Slides
+            </a>
+          </div>
+        </div>
+      );
+    }
+    if (previewType === 'pdf-iframe' && previewUrl) {
+      return (
+        <div className="w-full h-full flex flex-col items-center justify-center">
+          <iframe
+            src={previewUrl}
+            title="PDF Preview"
+            className="w-full h-[70vh] min-h-[400px] rounded border bg-white"
+            allow="autoplay"
+          />
         </div>
       );
     }
