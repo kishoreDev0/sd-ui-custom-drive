@@ -1,6 +1,11 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { HardDrive, Users, FolderGit2, LogOut, Menu, X } from 'lucide-react';
+import openFolderIcon from '@/assets/open-folder.png';
+import organizationIcon from '@/assets/organization.png';
+import defaultLogo from '@/assets/defaultlogo.png';
+import logoutIcon from '@/assets/github.png'; // Use github.png as a placeholder for logout
+import hamburgerIcon from '@/assets/vite.svg'; // Use vite.svg as a placeholder for menu
+import closeIcon from '@/assets/react.svg'; // Use react.svg as a placeholder for close
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,7 +68,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         onClick={() => setSidebarOpen(true)}
         aria-label="Open sidebar"
       >
-        <Menu className="w-6 h-6 text-gray-700" />
+        <img src={hamburgerIcon} alt="Menu" className="w-6 h-6 text-gray-700" />
       </button>
 
       {/* Overlay */}
@@ -85,7 +90,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* Header */}
         <div className="p-4  flex items-center gap-3 border-b">
           <div className="bg-gradient-to-tr from-blue-500 to-sky-600 p-2 rounded-lg shadow">
-            <FolderGit2 className="h-6 w-6 text-white" />
+            <img src={defaultLogo} alt="Logo" className="h-6 w-6" />
           </div>
           <h1 className="text-lg font-bold tracking-tight text-gray-800">
             CloudDrive
@@ -95,7 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => setSidebarOpen(false)}
             aria-label="Close sidebar"
           >
-            <X className="w-5 h-5 text-gray-700" />
+            <img src={closeIcon} alt="Close" className="w-5 h-5 text-gray-700" />
           </button>
         </div>
 
@@ -116,7 +121,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 setCurrentPage(1);
               }}
             >
-              <HardDrive className="h-5 w-5 mr-3 text-sky-600" />
+              <img src={openFolderIcon} alt="My Drive" className="h-5 w-5 mr-3" />
               My Drive
             </button>
 
@@ -133,7 +138,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 setCurrentPage(1);
               }}
             >
-              <Users className="h-5 w-5 mr-3 text-sky-600" />
+              <img src={organizationIcon} alt="Shared" className="h-5 w-5 mr-3" />
               Shared with Me
             </button>
           </nav>
@@ -162,7 +167,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => setConfirmModalOpen(true)}
                 className="flex items-center gap-2 text-red-600 font-medium cursor-pointer hover:bg-red-50"
               >
-                <LogOut size={16} />
+                <img src={logoutIcon} alt="Logout" className="w-4 h-4" />
                 Logout
               </DropdownMenuItem>
             </DropdownMenuContent>

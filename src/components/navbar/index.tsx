@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Menu, ChevronDown, Search } from 'lucide-react';
+import menuIcon from '@/assets/vite.svg';
+import chevronIcon from '@/assets/react.svg';
+import searchIcon from '@/assets/googleLogo.png';
 import { useNavigate } from 'react-router-dom';
 // import Logo from '../../assets/google-drive-logo.svg'; // Placeholder for Google Drive logo
 import userlogo from '../../assets/user-image.jpg';
@@ -106,7 +108,7 @@ const Navbar: React.FC = () => {
               aria-expanded={isSidebarOpen}
             >
               <span className="sr-only">Toggle sidebar</span>
-              {/* <Menu size={24} aria-hidden="true" className="text-gray-600" /> */}
+              {/* <img src={menuIcon} alt="Menu" className="w-6 h-6 text-gray-600" /> */}
             </button>
             <div className="flex-shrink-0 flex items-center ml-2">
               {/* <img src={"Logo"} className="h-8 w-auto" alt="Google Drive" /> */}
@@ -119,7 +121,7 @@ const Navbar: React.FC = () => {
           <div className="flex-1 mx-4 max-w-2xl">
             <form onSubmit={handleSearch} className="relative">
               <div className="flex items-center w-full bg-gray-100 rounded-full px-4 py-2 focus-within:bg-white focus-within:ring-1 focus-within:ring-blue-500">
-                <Search size={18} className="text-gray-500 mr-2" />
+                <img src={searchIcon} alt="Search" className="w-4 h-4 mr-2" />
                 <input
                   type="text"
                   value={searchQuery}
@@ -145,12 +147,7 @@ const Navbar: React.FC = () => {
                     onError={(e) => (e.currentTarget.src = userlogo)}
                   />
                 </div>
-                <ChevronDown
-                  size={16}
-                  className={`ml-1 hidden sm:block transition-transform duration-200 ${
-                    dropdownOpen ? 'transform rotate-180' : ''
-                  } text-gray-600`}
-                />
+                <img src={chevronIcon} alt="Chevron" className={`ml-1 hidden sm:block transition-transform duration-200 ${dropdownOpen ? 'transform rotate-180' : ''} text-gray-600 w-4 h-4`} />
               </div>
               <div
                 className={`absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 transition-all duration-200 transform origin-top-right ${

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X } from 'lucide-react';
+import closeIcon from '@/assets/react.svg';
 
 interface CloseIconProps {
   onClick: () => void;
@@ -18,7 +18,7 @@ const CloseIcon: React.FC<CloseIconProps> = ({
       className={`absolute top-6 right-5 text-black hover:text-[var(--label)] cursor-pointer ${className}`}
       aria-label="Close"
     >
-      <X size={size} />
+      <img src={closeIcon} alt="Close" style={{ width: size, height: size }} />
     </button>
   );
 };

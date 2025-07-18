@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { X, TriangleAlert, Ban, CircleCheckBig } from 'lucide-react';
+import successIcon from '@/assets/excel.png';
+import errorIcon from '@/assets/pdf.png';
+import warningIcon from '@/assets/ppt.png';
+import closeIcon from '@/assets/react.svg';
 
 export type SnackbarType = 'success' | 'error' | 'warning';
 
@@ -11,9 +14,9 @@ interface SnackbarProps {
 }
 
 const icons = {
-  success: CircleCheckBig,
-  error: Ban,
-  warning: TriangleAlert,
+  success: successIcon,
+  error: errorIcon,
+  warning: warningIcon,
 };
 
 const typeStyles = {
@@ -65,7 +68,7 @@ export function Snackbar({
         <div
           className={`w-6 h-6 rounded flex items-center justify-center ${styles.icon}`}
         >
-          <Icon className="w-5 h-5" />
+          <img src={Icon} alt={type} className="w-5 h-5" />
         </div>
         <span className="flex-1 break-words whitespace-pre-wrap max-h-20 overflow-y-auto">
           {message}
@@ -74,7 +77,7 @@ export function Snackbar({
           onClick={handleClose}
           className="ml-auto p-1 rounded flex items-center justify-center"
         >
-          <X className="w-4 h-4 hover:text-[var(--gray-500)]" />
+          <img src={closeIcon} alt="Close" className="w-4 h-4 hover:text-[var(--gray-500)]" />
         </button>
       </div>
     </div>

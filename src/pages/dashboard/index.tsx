@@ -32,6 +32,16 @@ import {
 import * as XLSX from 'xlsx';
 import { decryptToken } from '@/utils/crypto';
 import DocViewer, { DocViewerRenderers } from 'react-doc-viewer';
+import excelIcon from '@/assets/excel.png';
+import pdfIcon from '@/assets/pdf.png';
+import imgIcon from '@/assets/img.png';
+import pptIcon from '@/assets/ppt.png';
+import wordIcon from '@/assets/word.png';
+import txtIcon from '@/assets/txt.png';
+import audioIcon from '@/assets/audio.png';
+import videoIcon from '@/assets/video.png';
+import openFolderIcon from '@/assets/open-folder.png';
+import defaultFileIcon from '@/assets/default file.png';
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
@@ -502,75 +512,35 @@ const Dashboard: React.FC = () => {
     return fileName.split('.').pop()?.toLowerCase() || '';
   }
 
-  function getFileIcon(file: any): string {
+  function getFileIcon(file: any): JSX.Element {
     const mimeType = file.mimeType;
     const extension = getFileExtension(file.name);
-
-    // Google Drive style icons using emojis that closely match their design
-    if (mimeType === FOLDER_MIME) return '📁';
-    if (mimeType.startsWith('image/')) return '🖼️';
-    if (mimeType === 'application/pdf') return '📄';
-    if (mimeType.startsWith('video/')) return '🎬';
-    if (mimeType.startsWith('audio/')) return '🎵';
-
-    const extensionIcons: { [key: string]: string } = {
-      // Documents
-      doc: '📝',
-      docx: '📝',
-      // Spreadsheets
-      xls: '📊',
-      xlsx: '📊',
-      csv: '📊',
-      // Presentations
-      ppt: '📽️',
-      pptx: '📽️',
-      // Text files
-      txt: '📜',
-      // Archives
-      zip: '📦',
-      rar: '📦',
-      '7z': '📦',
-      tar: '📦',
-      gz: '📦',
-      // Images
-      jpg: '🖼️',
-      jpeg: '🖼️',
-      png: '🖼️',
-      gif: '🖼️',
-      svg: '🖼️',
-      webp: '🖼️',
-      // Audio
-      mp3: '🎵',
-      wav: '🎵',
-      flac: '🎵',
-      aac: '🎵',
-      // Video
-      mp4: '🎬',
-      mov: '🎬',
-      avi: '🎬',
-      mkv: '🎬',
-      webm: '🎬',
-      // Other
-      pdf: '📄',
-      json: '📄',
-      xml: '📄',
-      html: '📄',
-      css: '📄',
-      js: '📄',
-      ts: '📄',
-      py: '📄',
-      java: '📄',
-      cpp: '📄',
-      c: '📄',
-      php: '📄',
-      rb: '📄',
-      go: '📄',
-      rs: '📄',
-      swift: '📄',
-      kt: '📄',
+    if (mimeType === FOLDER_MIME) return <img src={openFolderIcon} alt="Folder" className="w-7 h-7" />;
+    if (mimeType.startsWith('image/')) return <img src={imgIcon} alt="Image" className="w-7 h-7" />;
+    if (mimeType === 'application/pdf') return <img src={pdfIcon} alt="PDF" className="w-7 h-7" />;
+    if (mimeType.startsWith('video/')) return <img src={videoIcon} alt="Video" className="w-7 h-7" />;
+    if (mimeType.startsWith('audio/')) return <img src={audioIcon} alt="Audio" className="w-7 h-7" />;
+    const extMap: { [key: string]: string } = {
+      doc: wordIcon,
+      docx: wordIcon,
+      xls: excelIcon,
+      xlsx: excelIcon,
+      csv: excelIcon,
+      ppt: pptIcon,
+      pptx: pptIcon,
+      txt: txtIcon,
+      pdf: pdfIcon,
+      jpg: imgIcon,
+      jpeg: imgIcon,
+      png: imgIcon,
+      gif: imgIcon,
+      mp3: audioIcon,
+      wav: audioIcon,
+      mp4: videoIcon,
+      mov: videoIcon,
     };
-
-    return extensionIcons[extension] || '📄';
+    const icon = extMap[extension] || defaultFileIcon;
+    return <img src={icon} alt={extension + ' file'} className="w-7 h-7" />;
   }
 
   function formatFileType(file: any): string {
@@ -598,7 +568,6 @@ const Dashboard: React.FC = () => {
       wav: 'WAV Audio',
       mp4: 'MP4 Video',
       mov: 'MOV Video',
-      pdf: 'PDF Document',
     };
 
     return (
@@ -1790,6 +1759,23 @@ const Dashboard: React.FC = () => {
                               <Trash2 className="w-4 h-4 mr-2" /> Remove (coming
                               soon)
                             </DropdownMenuItem>
+                            {file.mimeType !== FOLDER_MIME &&
+                              (['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'application/vnd.google-apps.spreadsheet'].includes(file.mimeType) || ['csv', 'xlsx', 'xls'].includes(getFileExtension(file.name))) && (
+                                <DropdownMenuItem asChild>
+                                  <a
+                                    href={
+                                      file.mimeType === 'application/vnd.google-apps.spreadsheet'
+                                        ? `https://docs.google.com/spreadsheets/d/${file.id}/edit`
+                                        : file.webViewLink || `https://docs.google.com/spreadsheets/u/0/?usp=drive_web&ouid=1234567890#gid=0`
+                                    }
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center"
+                                  >
+                                    <img src={excelIcon} alt="Open in Google Sheets" className="w-4 h-4 mr-2" /> Open in Google Sheets
+                                  </a>
+                                </DropdownMenuItem>
+                              )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
