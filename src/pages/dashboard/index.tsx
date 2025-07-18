@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppSelector } from '@/store';
 import { cn } from '@/lib/utils';
 import Sidebar from '@/components/sidebar';
 import { useSnackbar } from '@/components/snackbar/SnackbarProvider';
@@ -16,9 +15,7 @@ import {
   Trash2,
   Share2,
   FolderOpen,
-  FileText,
-  Table,
-  Presentation,
+
   Users,
   Search,
   ChevronDown,
@@ -93,7 +90,6 @@ const useFilePreview = () => {
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAppSelector((state) => state.auth);
   const [files, setFiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,8 +106,7 @@ const Dashboard: React.FC = () => {
   });
   const [activeTab, setActiveTab] = useState<TabType>('mydrive');
   // Add state for loading/feedback
-  const [creatingFolder, setCreatingFolder] = useState(false);
-  const [uploadingFile, setUploadingFile] = useState(false);
+
   const [loadingMore, setLoadingMore] = useState(false);
   const { showSnackbar } = useSnackbar();
 
@@ -155,7 +150,6 @@ const Dashboard: React.FC = () => {
   // Check if file can be previewed
   const canPreviewFile = (file: any): boolean => {
     const mime = file.mimeType;
-    const ext = getFileExtension(file.name);
 
     // Images
     if (mime.startsWith('image/')) return true;
@@ -410,9 +404,6 @@ const Dashboard: React.FC = () => {
       return {};
     }
   })();
-  const displayName = userInfo.name || user?.username || 'User';
-  const email = userInfo.email || '';
-  const avatar = userInfo.picture || '';
 
   // Logout confirmation state
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -626,7 +617,7 @@ const Dashboard: React.FC = () => {
     setPreviewLoading(true);
 
     const encrypted = localStorage.getItem('googleAccessToken');
-    const googleToken = encrypted ? decryptToken(encrypted) : null;
+    const googleToken = encrypted ? decryptToken(encrypted) : '';
     if (!googleToken) {
       setPreviewError('Authentication required');
       setPreviewLoading(false);
@@ -685,12 +676,12 @@ const Dashboard: React.FC = () => {
       else if (isSpreadsheetFile(file)) {
         if (file.mimeType === FILE_TYPES.CSV || file.name.endsWith('.csv')) {
           // Handle CSV files
-          const res = await fetch(
-            `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
-            {
-              headers: { Authorization: 'Bearer ' + googleToken },
-            },
-          );
+        const res = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
+          {
+            headers: { Authorization: 'Bearer ' + googleToken },
+          },
+        );
           if (!res.ok)
             throw new Error('Preview not allowed or file not found.');
           const text = await res.text();
@@ -738,8 +729,8 @@ const Dashboard: React.FC = () => {
           );
           if (!res.ok)
             throw new Error('Preview not allowed or file not found.');
-          const blob = await res.blob();
-          setPreviewUrl(URL.createObjectURL(blob));
+        const blob = await res.blob();
+        setPreviewUrl(URL.createObjectURL(blob));
           setPreviewType('application/pdf');
         } else {
           // For PowerPoint files, we'll show a message that they need to be downloaded
@@ -787,6 +778,7 @@ const Dashboard: React.FC = () => {
       }
       // Google Docs
       else if (file.mimeType === FILE_TYPES.GOOGLE_DOC) {
+        // Export as PDF for preview
         const res = await fetch(
           `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=application/pdf`,
           {
@@ -1132,6 +1124,10 @@ const Dashboard: React.FC = () => {
 
   // Improved download logic
   async function downloadFileWithToken(file: any, accessToken: string) {
+    if (!accessToken) {
+      showSnackbar('Authentication required to download file.', 'error');
+      return;
+    }
     let url = '';
     let fileName = file.name;
     if (file.mimeType === 'application/vnd.google-apps.spreadsheet') {
@@ -1281,7 +1277,11 @@ const Dashboard: React.FC = () => {
   async function handleRename() {
     if (!renameFile || !renameValue.trim()) return;
     const encrypted = localStorage.getItem('googleAccessToken');
-    const googleToken = encrypted ? decryptToken(encrypted) : null;
+    const googleToken = encrypted ? decryptToken(encrypted) : '';
+    if (!googleToken) {
+      showSnackbar('Authentication required.', 'error');
+      return;
+    }
     try {
       const res = await fetch(`https://www.googleapis.com/drive/v3/files/${renameFile.id}`, {
         method: 'PATCH',
@@ -1310,7 +1310,11 @@ const Dashboard: React.FC = () => {
   async function handleDelete() {
     if (!deleteFile) return;
     const encrypted = localStorage.getItem('googleAccessToken');
-    const googleToken = encrypted ? decryptToken(encrypted) : null;
+    const googleToken = encrypted ? decryptToken(encrypted) : '';
+    if (!googleToken) {
+      showSnackbar('Authentication required.', 'error');
+      return;
+    }
     try {
       const res = await fetch(`https://www.googleapis.com/drive/v3/files/${deleteFile.id}`, {
         method: 'DELETE',
@@ -1334,7 +1338,11 @@ const Dashboard: React.FC = () => {
   async function handleMove() {
     if (!moveFile || !moveTarget) return;
     const encrypted = localStorage.getItem('googleAccessToken');
-    const googleToken = encrypted ? decryptToken(encrypted) : null;
+    const googleToken = encrypted ? decryptToken(encrypted) : '';
+    if (!googleToken) {
+      showSnackbar('Authentication required.', 'error');
+      return;
+    }
     try {
       const res = await fetch(`https://www.googleapis.com/drive/v3/files/${moveFile.id}`, {
         method: 'PATCH',
@@ -1455,9 +1463,9 @@ const Dashboard: React.FC = () => {
                       onClick={() => setFileTypeFilter(opt.value)}
                       className={fileTypeFilter === opt.value ? 'bg-blue-50 text-blue-700 font-semibold' : ''}
                     >
-                      {opt.label}
+                    {opt.label}
                     </DropdownMenuItem>
-                  ))}
+                ))}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -1605,14 +1613,14 @@ const Dashboard: React.FC = () => {
               )}
               {/* Main grid of files/folders (make more responsive, flex for mobile, grid for desktop) */}
               <div className="flex flex-wrap gap-4">
-                {filteredFiles
-                  .slice(
-                    (currentPage - 1) * itemsPerPage,
-                    currentPage * itemsPerPage,
-                  )
-                  .map((file) => (
-                    <div
-                      key={file.id}
+              {filteredFiles
+                .slice(
+                  (currentPage - 1) * itemsPerPage,
+                  currentPage * itemsPerPage,
+                )
+                .map((file) => (
+                  <div
+                    key={file.id}
                       className="w-full sm:w-[48%] lg:w-[32%] flex items-center justify-between px-4 py-3 bg-[#f4f7fb] rounded-xl cursor-pointer hover:shadow-sm transition-all"
                       onClick={() => {
                         if (file.mimeType === FOLDER_MIME) {
@@ -1662,22 +1670,14 @@ const Dashboard: React.FC = () => {
                           >
                             {file.mimeType !== FOLDER_MIME &&
                               canPreviewFile(file) && (
-                                <DropdownMenuItem
-                                  onClick={() => handlePreview(file)}
-                                >
+                              <DropdownMenuItem
+                                onClick={() => handlePreview(file)}
+                              >
                                   <FolderOpen className="w-4 h-4 mr-2" />{' '}
                                   Preview
-                                </DropdownMenuItem>
-                              )}
-                            <DropdownMenuItem onClick={() => { setRenameFile(file); setRenameValue(file.name); }}>
-                              <Pencil className="w-4 h-4 mr-2" /> Rename
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setMoveFile(file)}>
-                              <FolderOpen className="w-4 h-4 mr-2" /> Move
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setDeleteFile(file)} variant="destructive">
-                              <Trash2 className="w-4 h-4 mr-2" /> Remove
-                            </DropdownMenuItem>
+                              </DropdownMenuItem>
+                            )}
+                            
                             <DropdownMenuItem
                               onClick={() =>
                                 downloadFileWithToken(
@@ -1721,10 +1721,10 @@ const Dashboard: React.FC = () => {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </div>
                     </div>
-                  ))}
-              </div>
+                  </div>
+                ))}
+            </div>
             </>
           )}
 

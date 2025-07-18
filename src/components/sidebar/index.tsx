@@ -146,7 +146,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <button className="flex items-center gap-3 w-full text-left focus:outline-none hover:bg-gray-50 p-2 rounded-lg">
                 <div className="w-9 h-9 to-blue-600 flex items-center justify-center">
                   <span className="text-white text-sm font-bold uppercase">
-                    <img src={image} alt="" />
+                    <img src={image} alt="User" />
                   </span>
                 </div>
                 <div>
