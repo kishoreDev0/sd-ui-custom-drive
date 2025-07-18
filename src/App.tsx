@@ -17,33 +17,36 @@ import PrivateRoute from './axios-setup/private-route';
 import GoogleAuthSuccess from './components/login/googleSignIn';
 import GitHubAuthSuccess from './components/login/githubSignIn';
 import Loader from './components/loader/loader';
+import { SnackbarProvider } from './components/snackbar/SnackbarProvider';
 
 const App = () => {
   return (
     <Provider store={store}>
       <AuthProvider>
-        <Router>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/registerform" element={<RegistrationForm />} />
-            <Route path="/loader" element={<Loader />} />
-            <Route path="/forgotpassword" element={<ForgotPassword />} />
-            <Route path="/change" element={<ChangePassword />} />
-            <Route
-              path="/dashboard"
-              element={<PrivateRoute element={<Dashboard />} />}
-            />
-            <Route
-              path="/google-auth-success"
-              element={<GoogleAuthSuccess />}
-            />
-            <Route
-              path="/github-auth-success"
-              element={<GitHubAuthSuccess />}
-            />
-            <Route path="*" element={<Navigate to="/login" />} />
-          </Routes>
-        </Router>
+        <SnackbarProvider>
+          <Router>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/registerform" element={<RegistrationForm />} />
+              <Route path="/loader" element={<Loader />} />
+              <Route path="/forgotpassword" element={<ForgotPassword />} />
+              <Route path="/change" element={<ChangePassword />} />
+              <Route
+                path="/dashboard"
+                element={<PrivateRoute element={<Dashboard />} />}
+              />
+              <Route
+                path="/google-auth-success"
+                element={<GoogleAuthSuccess />}
+              />
+              <Route
+                path="/github-auth-success"
+                element={<GitHubAuthSuccess />}
+              />
+              <Route path="*" element={<Navigate to="/login" />} />
+            </Routes>
+          </Router>
+        </SnackbarProvider>
       </AuthProvider>
     </Provider>
   );

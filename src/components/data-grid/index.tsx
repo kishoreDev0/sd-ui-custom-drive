@@ -9,7 +9,8 @@ import {
   SortingState,
   flexRender,
 } from '@tanstack/react-table';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import chevronLeftIcon from '@/assets/react.svg';
+import chevronRightIcon from '@/assets/vite.svg';
 import { data, User } from '../../utils/data';
 import SearchBar from './search-bar';
 
@@ -127,14 +128,14 @@ const DataTable: React.FC = () => {
             disabled={!table.getCanPreviousPage()}
             className="px-2 disabled:opacity-50"
           >
-            <ChevronLeft size={18} />
+            <img src={chevronLeftIcon} alt="Prev" className="w-4 h-4" />
           </button>
           <button
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
             className="px-2 py-1 disabled:opacity-50"
           >
-            <ChevronRight size={18} />
+            <img src={chevronRightIcon} alt="Next" className="w-4 h-4" />
           </button>
         </div>
       </div>
