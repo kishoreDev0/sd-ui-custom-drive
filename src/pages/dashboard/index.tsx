@@ -20,6 +20,8 @@ import {
   Table,
   Presentation,
   Users,
+  Search,
+  ChevronDown,
 } from 'lucide-react';
 import mammoth from 'mammoth';
 import { ChevronRight, Filter } from 'lucide-react';
@@ -31,6 +33,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import * as XLSX from 'xlsx';
+import { decryptToken } from '@/utils/crypto';
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
@@ -310,7 +313,12 @@ const Dashboard: React.FC = () => {
   // Share handler
   const handleShare = async () => {
     if (!shareFile || !shareEmail) return;
-    const googleToken = localStorage.getItem('googleAccessToken');
+    const encrypted = localStorage.getItem('googleAccessToken');
+    const googleToken = encrypted ? decryptToken(encrypted) : null;
+    if (!googleToken) {
+      showSnackbar('Authentication required to share file.', 'error');
+      return;
+    }
     try {
       const res = await fetch(
         `https://www.googleapis.com/drive/v3/files/${shareFile.id}/permissions`,
@@ -417,7 +425,8 @@ const Dashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    const googleToken = localStorage.getItem('googleAccessToken');
+    const encrypted = localStorage.getItem('googleAccessToken');
+    const googleToken = encrypted ? decryptToken(encrypted) : null;
     if (!googleToken) {
       navigate('/login', { replace: true });
       return;
@@ -616,7 +625,8 @@ const Dashboard: React.FC = () => {
     setPreviewError(null);
     setPreviewLoading(true);
 
-    const googleToken = localStorage.getItem('googleAccessToken');
+    const encrypted = localStorage.getItem('googleAccessToken');
+    const googleToken = encrypted ? decryptToken(encrypted) : null;
     if (!googleToken) {
       setPreviewError('Authentication required');
       setPreviewLoading(false);
@@ -1124,21 +1134,22 @@ const Dashboard: React.FC = () => {
   async function downloadFileWithToken(file: any, accessToken: string) {
     let url = '';
     let fileName = file.name;
-    if (file.mimeType === FILE_TYPES.GOOGLE_SHEET) {
+    if (file.mimeType === 'application/vnd.google-apps.spreadsheet') {
       url = `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`;
       fileName += '.xlsx';
-    } else if (file.mimeType === FILE_TYPES.GOOGLE_DOC) {
+    } else if (file.mimeType === 'application/vnd.google-apps.document') {
       url = `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=application/pdf`;
       fileName += '.pdf';
-    } else if (file.mimeType === FILE_TYPES.GOOGLE_SLIDE) {
+    } else if (file.mimeType === 'application/vnd.google-apps.presentation') {
       url = `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=application/pdf`;
       fileName += '.pdf';
     } else {
       url = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
     }
     try {
+      const decryptTc = decryptToken(accessToken);
       const res = await fetch(url, {
-        headers: { Authorization: 'Bearer ' + accessToken },
+        headers: { Authorization: 'Bearer ' + decryptTc },
       });
       if (res.status === 403) {
         showSnackbar(
@@ -1252,8 +1263,101 @@ const Dashboard: React.FC = () => {
 
   // Suggested Folders Section (horizontal scroll, Google Drive style)
   const suggestedFolders = filteredFiles.filter(
-    (file) => file.mimeType === FOLDER_MIME && (file.shared || file.owners?.length > 1)
+    (file) =>
+      file.mimeType === FOLDER_MIME && (file.shared || file.owners?.length > 1),
   );
+
+  // Add state for modals
+  const [renameFile, setRenameFile] = useState<any | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [deleteFile, setDeleteFile] = useState<any | null>(null);
+  const [moveFile, setMoveFile] = useState<any | null>(null);
+  const [moveTarget, setMoveTarget] = useState('');
+
+  // Helper: Get all folders for move dropdown
+  const allFolders = files.filter(f => f.mimeType === FOLDER_MIME);
+
+  // Rename handler
+  async function handleRename() {
+    if (!renameFile || !renameValue.trim()) return;
+    const encrypted = localStorage.getItem('googleAccessToken');
+    const googleToken = encrypted ? decryptToken(encrypted) : null;
+    try {
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${renameFile.id}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: 'Bearer ' + googleToken,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: renameValue.trim() }),
+      });
+      if (!res.ok) throw new Error('Failed to rename');
+      setRenameFile(null);
+      setRenameValue('');
+      showSnackbar('Renamed successfully!', 'success');
+      // Refresh
+      if (activeTab === 'mydrive') {
+        fetchDriveFiles(googleToken, currentPage, true, currentFolder);
+      } else {
+        fetchSharedWithMeFiles(googleToken, currentPage, true, currentFolder);
+      }
+    } catch (err: any) {
+      showSnackbar('Rename failed: ' + err.message, 'error');
+    }
+  }
+
+  // Delete handler
+  async function handleDelete() {
+    if (!deleteFile) return;
+    const encrypted = localStorage.getItem('googleAccessToken');
+    const googleToken = encrypted ? decryptToken(encrypted) : null;
+    try {
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${deleteFile.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + googleToken },
+      });
+      if (!res.ok) throw new Error('Failed to delete');
+      setDeleteFile(null);
+      showSnackbar('Deleted successfully!', 'success');
+      // Refresh
+      if (activeTab === 'mydrive') {
+        fetchDriveFiles(googleToken, currentPage, true, currentFolder);
+      } else {
+        fetchSharedWithMeFiles(googleToken, currentPage, true, currentFolder);
+      }
+    } catch (err: any) {
+      showSnackbar('Delete failed: ' + err.message, 'error');
+    }
+  }
+
+  // Move handler
+  async function handleMove() {
+    if (!moveFile || !moveTarget) return;
+    const encrypted = localStorage.getItem('googleAccessToken');
+    const googleToken = encrypted ? decryptToken(encrypted) : null;
+    try {
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${moveFile.id}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: 'Bearer ' + googleToken,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ parents: [moveTarget] }),
+      });
+      if (!res.ok) throw new Error('Failed to move');
+      setMoveFile(null);
+      setMoveTarget('');
+      showSnackbar('Moved successfully!', 'success');
+      // Refresh
+      if (activeTab === 'mydrive') {
+        fetchDriveFiles(googleToken, currentPage, true, currentFolder);
+      } else {
+        fetchSharedWithMeFiles(googleToken, currentPage, true, currentFolder);
+      }
+    } catch (err: any) {
+      showSnackbar('Move failed: ' + err.message, 'error');
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
@@ -1267,17 +1371,14 @@ const Dashboard: React.FC = () => {
       />
 
       {/* Main Content */}
-      <div className="flex-1 ml-64">
-        <main className="p-6 pt-6 max-w-7xl mx-auto">
-          {/* Toolbar */}
-          {/* Remove the toolbar from the main content area */}
-
-          {/* Breadcrumbs and Filter Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+      <div className="flex-1 h-[100vh] overflow-y-scroll">
+        <main className="p-4 pt-6 w-full">
+          {/* Unified header: Breadcrumbs, Search, Filter */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6 w-full">
             {/* Breadcrumbs */}
-            <nav className="flex items-center text-sm text-gray-600 dark:text-gray-300 gap-1 flex-wrap">
+            <nav className="flex items-center text-sm text-gray-600 gap-1 flex-wrap min-w-0 flex-1 mb-2 sm:mb-0">
               <button
-                className="hover:underline font-medium text-blue-600 dark:text-blue-400"
+                className="hover:underline font-medium text-blue-600"
                 onClick={() => {
                   setCurrentFolder('root');
                   setParentStack([]);
@@ -1290,7 +1391,7 @@ const Dashboard: React.FC = () => {
                 <span key={folderId} className="flex items-center">
                   <ChevronRight className="w-4 h-4 mx-1 text-gray-400" />
                   <button
-                    className="hover:underline text-blue-600 dark:text-blue-400"
+                    className="hover:underline text-blue-600"
                     onClick={() => {
                       setCurrentFolder(folderId);
                       setParentStack(parentStack.slice(0, idx));
@@ -1303,29 +1404,64 @@ const Dashboard: React.FC = () => {
               {currentFolder !== 'root' && (
                 <span className="flex items-center">
                   <ChevronRight className="w-4 h-4 mx-1 text-gray-400" />
-                  <span className="font-semibold text-gray-800 dark:text-gray-100">
-                    {currentFolderName}
+                  <span className="font-semibold text-gray-800 truncate max-w-[120px] md:max-w-[200px]">
+                    {folderNames[currentFolder] || 'My Drive'}
                   </span>
                 </span>
               )}
             </nav>
-            {/* File Type Filter */}
-            <div className="flex items-center gap-2">
-              <Filter className="w-5 h-5 text-gray-400" />
-              <select
-                value={fileTypeFilter}
-                onChange={(e) => setFileTypeFilter(e.target.value)}
-                className="border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-sm bg-white dark:bg-zinc-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {FILE_TYPE_FILTERS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+            {/* Google Drive-style Search Bar */}
+            <div className="flex-1 flex items-center justify-center">
+              <div className="relative w-full sm:max-w-2xl">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                  <Search className="w-5 h-5" />
+                </span>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search in Drive"
+                  className="w-full pl-12 pr-12 py-2.5 rounded-full border border-gray-200 bg-white text-gray-800 placeholder-gray-400 shadow focus:border-blue-500 focus:ring-2 focus:ring-blue-100 focus:outline-none transition"
+                  aria-label="Search files and folders"
+                />
+                {search && (
+                  <button
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    onClick={() => setSearch('')}
+                    aria-label="Clear search"
+                    tabIndex={0}
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+            </div>
+            {/* Google Drive-style Filter Dropdown */}
+            <div className="flex items-center sm:ml-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="flex items-center gap-2 px-4 py-2 rounded-full border border-gray-200 bg-white shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 transition"
+                  >
+                    <Filter className="w-4 h-4 text-gray-400" />
+                    <span className="hidden sm:inline">{FILE_TYPE_FILTERS.find(f => f.value === fileTypeFilter)?.label || 'All'}</span>
+                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[160px]">
+                  {FILE_TYPE_FILTERS.map(opt => (
+                    <DropdownMenuItem
+                      key={opt.value}
+                      onClick={() => setFileTypeFilter(opt.value)}
+                      className={fileTypeFilter === opt.value ? 'bg-blue-50 text-blue-700 font-semibold' : ''}
+                    >
+                      {opt.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
-
           {/* Loading State */}
           {loading ? (
             <div className="py-16">
@@ -1384,77 +1520,108 @@ const Dashboard: React.FC = () => {
             </div>
           ) : (
             <>
-              {suggestedFolders.length > 0 && (
+              {/* Only show suggested folders in root */}
+              {currentFolder === 'root' && suggestedFolders.length > 0 && (
                 <section className="mb-8">
                   <div className="flex items-center gap-2 mb-3">
                     <ChevronRight className="w-5 h-5 text-gray-500" />
-                    <span className="font-semibold text-lg text-gray-800">Suggested folders</span>
+                    <span className="font-semibold text-lg text-gray-800">
+                      Suggested folders
+                    </span>
                   </div>
-                  <div className="flex gap-4 overflow-x-auto pb-2 hide-scrollbar">
-                    {suggestedFolders.map((file) => (
-                      <div
-                        key={file.id}
-                        className="flex items-center min-w-[320px] max-w-xs bg-gray-100 hover:bg-gray-200 rounded-2xl px-6 py-5 shadow-sm transition cursor-pointer relative"
-                        onClick={() => {
-                          setParentStack((prev) => [...prev, currentFolder]);
-                          setCurrentFolder(file.id);
-                          setFolderNames((prev) => ({ ...prev, [file.id]: file.name }));
-                          setCurrentPage(1);
-                        }}
-                      >
-                        {/* Folder Icon with Shared Badge */}
-                        <div className="relative mr-4">
-                          <div className="w-9 h-9 rounded-lg bg-gray-700 flex items-center justify-center text-white">
-                            <span className="text-lg">📁</span>
+                  <div className="flex flex-wrap overflow-x-auto pb-2 hide-scrollbar w-full min-w-0">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {suggestedFolders.map((file) => (
+                        <div
+                          key={file.id}
+                          className="flex items-center bg-gray-100 hover:bg-gray-200 rounded-2xl px-3 py-2 shadow-sm transition cursor-pointer relative"
+                          onClick={() => {
+                            setParentStack((prev) => [...prev, currentFolder]);
+                            setCurrentFolder(file.id);
+                            setFolderNames((prev) => ({
+                              ...prev,
+                              [file.id]: file.name,
+                            }));
+                            setCurrentPage(1);
+                          }}
+                        >
+                          {/* Folder Icon with Shared Badge */}
+                          <div className="relative mr-4">
+                            <div className="w-9 h-9 rounded-lg bg-gray-700 flex items-center justify-center text-white">
+                              <span className="text-lg">📁</span>
+                            </div>
+                            {file.owners?.length > 1 || file.shared ? (
+                              <div className="absolute -bottom-1 -right-1 bg-white rounded-full border border-gray-200 p-0.5">
+                                <Users className="w-3 h-3 text-gray-500" />
+                              </div>
+                            ) : null}
                           </div>
-                          {/* Shared badge */}
-                          <div className="absolute -bottom-1 -right-1 bg-white rounded-full border border-gray-200 p-0.5">
-                            <Users className="w-3 h-3 text-gray-500" />
+
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-gray-900 truncate text-base">
+                              {file.name}
+                            </div>
+                            <div className="text-xs text-gray-500 truncate">
+                              {file.owners?.length > 1 || file.shared
+                                ? 'In Shared with me'
+                                : 'In My Drive'}
+                            </div>
+                          </div>
+
+                          {/* 3-dots menu */}
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="ml-2"
+                          >
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button className="p-1.5 rounded-full hover:bg-gray-200">
+                                  <MoreVertical className="w-4 h-4 text-gray-600" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent
+                                align="end"
+                                className="min-w-[180px] z-50"
+                              >
+                                <DropdownMenuItem
+                                  onClick={() => handleOpenFolder(file)}
+                                >
+                                  <FolderOpen className="w-4 h-4 mr-2" /> Open
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => setShareFile(file)}
+                                >
+                                  <Share2 className="w-4 h-4 mr-2" /> Share
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-gray-900 truncate text-base">{file.name}</div>
-                          <div className="text-xs text-gray-500 truncate">
-                            {file.owners?.length > 1 || file.shared ? 'In Shared with me' : 'In My Drive'}
-                          </div>
-                        </div>
-                        {/* 3-dots menu */}
-                        <div onClick={e => e.stopPropagation()} className="ml-2">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button className="p-1.5 rounded-full hover:bg-gray-200">
-                                <MoreVertical className="w-4 h-4 text-gray-600" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="min-w-[180px] z-50">
-                              <DropdownMenuItem onClick={() => handleOpenFolder(file)}>
-                                <FolderOpen className="w-4 h-4 mr-2" /> Open
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => setShareFile(file)}>
-                                <Share2 className="w-4 h-4 mr-2" /> Share
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </section>
               )}
               {/* Main grid of files/folders (make more responsive, flex for mobile, grid for desktop) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="flex flex-wrap gap-4">
                 {filteredFiles
-                  .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                  .slice(
+                    (currentPage - 1) * itemsPerPage,
+                    currentPage * itemsPerPage,
+                  )
                   .map((file) => (
                     <div
                       key={file.id}
-                      className="flex items-center justify-between px-4 py-3 bg-[#f4f7fb] rounded-xl cursor-pointer hover:shadow-sm transition-all"
+                      className="w-full sm:w-[48%] lg:w-[32%] flex items-center justify-between px-4 py-3 bg-[#f4f7fb] rounded-xl cursor-pointer hover:shadow-sm transition-all"
                       onClick={() => {
                         if (file.mimeType === FOLDER_MIME) {
                           setParentStack((prev) => [...prev, currentFolder]);
                           setCurrentFolder(file.id);
-                          setFolderNames((prev) => ({ ...prev, [file.id]: file.name }));
+                          setFolderNames((prev) => ({
+                            ...prev,
+                            [file.id]: file.name,
+                          }));
                           setCurrentPage(1);
                         } else if (canPreviewFile(file)) {
                           handlePreview(file);
@@ -1463,35 +1630,60 @@ const Dashboard: React.FC = () => {
                     >
                       {/* Left - Icon and Info */}
                       <div className="flex items-center gap-3">
-                        {/* File Icon */}
                         <div className="w-10 h-10 rounded-md bg-gray-700 flex items-center justify-center text-white">
                           <span className="text-sm">{getFileIcon(file)}</span>
                         </div>
-                        {/* File Name and Subtext */}
                         <div>
-                          <h3 className="text-sm font-semibold text-gray-800 truncate max-w-[150px]" title={file.name}>
+                          <h3
+                            className="text-sm font-semibold text-gray-800 truncate max-w-[150px]"
+                            title={file.name}
+                          >
                             {file.name}
                           </h3>
-                          <p className="text-xs text-gray-500 mt-0.5">{formatFileType(file)}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {formatFileType(file)}
+                          </p>
                         </div>
                       </div>
                       {/* Right - More Options */}
-                      <div onClick={(e) => e.stopPropagation()} className="relative">
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="relative"
+                      >
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button className="p-1.5 rounded-full hover:bg-gray-200">
                               <MoreVertical className="w-4 h-4 text-gray-600" />
                             </button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="min-w-[180px] z-50">
-                            {file.mimeType !== FOLDER_MIME && canPreviewFile(file) && (
-                              <DropdownMenuItem onClick={() => handlePreview(file)}>
-                                <FolderOpen className="w-4 h-4 mr-2" /> Preview
-                              </DropdownMenuItem>
-                            )}
+                          <DropdownMenuContent
+                            align="end"
+                            className="min-w-[180px] z-50"
+                          >
+                            {file.mimeType !== FOLDER_MIME &&
+                              canPreviewFile(file) && (
+                                <DropdownMenuItem
+                                  onClick={() => handlePreview(file)}
+                                >
+                                  <FolderOpen className="w-4 h-4 mr-2" />{' '}
+                                  Preview
+                                </DropdownMenuItem>
+                              )}
+                            <DropdownMenuItem onClick={() => { setRenameFile(file); setRenameValue(file.name); }}>
+                              <Pencil className="w-4 h-4 mr-2" /> Rename
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setMoveFile(file)}>
+                              <FolderOpen className="w-4 h-4 mr-2" /> Move
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setDeleteFile(file)} variant="destructive">
+                              <Trash2 className="w-4 h-4 mr-2" /> Remove
+                            </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() =>
-                                downloadFileWithToken(file, localStorage.getItem('googleAccessToken')!)
+                                downloadFileWithToken(
+                                  file,
+                                  localStorage.getItem('googleAccessToken')!,
+                                )
                               }
                             >
                               <Download className="w-4 h-4 mr-2" /> Download
@@ -1504,22 +1696,28 @@ const Dashboard: React.FC = () => {
                                   rel="noopener noreferrer"
                                   className="flex items-center"
                                 >
-                                  <LinkIcon className="w-4 h-4 mr-2" /> Open in Drive
+                                  <LinkIcon className="w-4 h-4 mr-2" /> Open in
+                                  Drive
                                 </a>
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem disabled>
-                              <Pencil className="w-4 h-4 mr-2" /> Rename (coming soon)
+                              <Pencil className="w-4 h-4 mr-2" /> Rename (coming
+                              soon)
                             </DropdownMenuItem>
                             <DropdownMenuItem disabled>
-                              <FolderOpen className="w-4 h-4 mr-2" /> Move (coming soon)
+                              <FolderOpen className="w-4 h-4 mr-2" /> Move
+                              (coming soon)
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setShareFile(file)}>
+                            <DropdownMenuItem
+                              onClick={() => setShareFile(file)}
+                            >
                               <Share2 className="w-4 h-4 mr-2" /> Share
                             </DropdownMenuItem>
                             <DropdownMenuItem disabled variant="destructive">
-                              <Trash2 className="w-4 h-4 mr-2" /> Remove (coming soon)
+                              <Trash2 className="w-4 h-4 mr-2" /> Remove (coming
+                              soon)
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -1534,18 +1732,18 @@ const Dashboard: React.FC = () => {
           {nextPageToken && (
             <button
               onClick={() => {
-                const googleToken =
-                  localStorage.getItem('googleAccessToken') || '';
+                const encrypted = localStorage.getItem('googleAccessToken');
+                const googleToken = encrypted ? decryptToken(encrypted) : null;
                 if (activeTab === 'mydrive') {
                   fetchDriveFiles(
-                    googleToken,
+                    googleToken!,
                     currentPage + 1,
                     false,
                     currentFolder,
                   );
                 } else if (activeTab === 'shared') {
                   fetchSharedWithMeFiles(
-                    googleToken,
+                    googleToken!,
                     currentPage + 1,
                     false,
                     currentFolder,
@@ -1670,6 +1868,57 @@ const Dashboard: React.FC = () => {
               <Button variant="destructive" onClick={handleLogout}>
                 Logout
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {renameFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-xs text-center">
+            <h3 className="text-lg font-semibold mb-4">Rename</h3>
+            <input
+              className="w-full border rounded px-3 py-2 mb-4"
+              value={renameValue}
+              onChange={e => setRenameValue(e.target.value)}
+              autoFocus
+            />
+            <div className="flex gap-3 justify-center">
+              <button className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300" onClick={() => setRenameFile(null)}>Cancel</button>
+              <button className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700" onClick={handleRename}>Rename</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {deleteFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-xs text-center">
+            <h3 className="text-lg font-semibold mb-4">Delete</h3>
+            <p className="mb-6">Are you sure you want to delete <span className="font-semibold">{deleteFile.name}</span>?</p>
+            <div className="flex gap-3 justify-center">
+              <button className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300" onClick={() => setDeleteFile(null)}>Cancel</button>
+              <button className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700" onClick={handleDelete}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {moveFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-xs text-center">
+            <h3 className="text-lg font-semibold mb-4">Move</h3>
+            <select
+              className="w-full border rounded px-3 py-2 mb-4"
+              value={moveTarget}
+              onChange={e => setMoveTarget(e.target.value)}
+            >
+              <option value="">Select folder...</option>
+              {allFolders.filter(f => f.id !== moveFile.id).map(f => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </select>
+            <div className="flex gap-3 justify-center">
+              <button className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300" onClick={() => setMoveFile(null)}>Cancel</button>
+              <button className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700" onClick={handleMove} disabled={!moveTarget}>Move</button>
             </div>
           </div>
         </div>

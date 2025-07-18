@@ -9,6 +9,7 @@ import googleLogo from '@/assets/googleLogo.png';
 import githubLogo from '@/assets/github.png';
 import Loader from '../loader/loader';
 import { useSnackbar } from '@/components/snackbar/SnackbarProvider';
+import { decryptToken } from '@/utils/crypto';
 
 interface DriveFile {
   id: string;
@@ -170,7 +171,8 @@ const Login: React.FC<LoginProps> = ({ logoSrc, logoAlt = 'Company Logo' }) => {
   }
 
   const handleDownloadAll = () => {
-    const googleToken = localStorage.getItem('googleAccessToken');
+    const encrypted = localStorage.getItem('googleAccessToken');
+    const googleToken = encrypted ? decryptToken(encrypted) : null;
     filteredFiles.forEach((file) => {
       if (file.mimeType !== FOLDER_MIME) {
         downloadFileWithToken(file.id, file.name, googleToken!);
@@ -221,7 +223,8 @@ const Login: React.FC<LoginProps> = ({ logoSrc, logoAlt = 'Company Logo' }) => {
     }
   };
 
-  const googleToken = localStorage.getItem('googleAccessToken');
+  const encrypted = localStorage.getItem('googleAccessToken');
+  const googleToken = encrypted ? decryptToken(encrypted) : null;
   const currentFolderName = folderNames[currentFolder] || 'My Drive';
 
   return (

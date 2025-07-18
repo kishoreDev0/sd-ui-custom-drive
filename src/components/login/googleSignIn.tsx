@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { encryptToken } from '@/utils/crypto';
 
 const GoogleAuthSuccess: React.FC = () => {
   const navigate = useNavigate();
@@ -26,7 +27,7 @@ const GoogleAuthSuccess: React.FC = () => {
       }
     }
     if (accessToken) {
-      localStorage.setItem('googleAccessToken', accessToken);
+      localStorage.setItem('googleAccessToken', encryptToken(accessToken));
       fetchAndStoreUserInfo(accessToken).finally(() => {
         window.history.replaceState(null, '', window.location.pathname);
         navigate('/dashboard', { replace: true });
