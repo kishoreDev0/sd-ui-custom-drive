@@ -1,7 +1,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import openFolderIcon from '@/assets/open-folder.png';
-import organizationIcon from '@/assets/organization.png';
 import defaultLogo from '@/assets/defaultlogo.png';
 import logoutIcon from '@/assets/github.png'; // Use github.png as a placeholder for logout
 import hamburgerIcon from '@/assets/vite.svg'; // Use vite.svg as a placeholder for menu
@@ -21,7 +20,7 @@ interface SidebarProps {
   activeTab: 'mydrive' | 'shared';
   setActiveTab: (tab: 'mydrive' | 'shared') => void;
   setCurrentFolder: (folder: string) => void;
-  setParentStack: (stack: string[] | ((prev: string[]) => string[])) => void;
+  setParentStack: (stack: {id: string, name: string}[] | ((prev: {id: string, name: string}[]) => {id: string, name: string}[])) => void;
   setCurrentPage: (page: number) => void;
 }
 
@@ -133,26 +132,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               My Drive
             </button>
 
-            <button
-              className={cn(
-                'w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all',
-                activeTab === 'shared'
-                  ? 'bg-sky-100 text-sky-700 font-semibold'
-                  : 'text-gray-600 hover:bg-sky-50',
-              )}
-              onClick={() => {
-                setActiveTab('shared');
-                setParentStack([]);
-                setCurrentPage(1);
-              }}
-            >
-              <img
-                src={organizationIcon}
-                alt="Shared"
-                className="h-5 w-5 mr-3"
-              />
-              Shared with Me
-            </button>
+           
           </nav>
         </div>
 
