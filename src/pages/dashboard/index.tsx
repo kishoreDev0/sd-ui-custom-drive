@@ -1412,6 +1412,7 @@ const Dashboard: React.FC = () => {
   const [rootFolders, setRootFolders] = useState<
     { id: string; name: string; error: boolean }[]
   >([]);
+  const [loadingFolders, setLoadingFolders] = useState(true);
 
   useEffect(() => {
     const encrypted = localStorage.getItem('googleAccessToken');
@@ -1478,62 +1479,6 @@ const Dashboard: React.FC = () => {
       ),
     ).then((results) => setRootFolderFiles(results));
   }, [rootFolders]);
-
-  // Parse folder IDs from env
-  const [folderWidgets, setFolderWidgets] = useState<{id: string, name: string, error: boolean}[]>([]);
-  const [loadingFolders, setLoadingFolders] = useState(true);
-
-  useEffect(() => {
-    const encrypted = localStorage.getItem('googleAccessToken');
-    const googleToken = encrypted ? decryptToken(encrypted) : null;
-    if (!googleToken) return;
-    setLoadingFolders(true);
-    Promise.all(
-      DRIVE_FOLDER_IDS.map(async (id: string) => {
-        try {
-          const res = await fetch(
-            `https://www.googleapis.com/drive/v3/files/${id}?fields=id,name`,
-            { headers: { Authorization: `Bearer ${googleToken}` } }
-          );
-          if (!res.ok) {
-            // No access or not found
-            return { id, name: 'Folder', error: true };
-          }
-          const data = await res.json();
-          return { id: data.id, name: data.name, error: false };
-        } catch {
-          // Handle all errors silently
-          return { id, name: 'Folder', error: true };
-        }
-      })
-    ).then(folders => {
-      setFolderWidgets(folders);
-      setLoadingFolders(false);
-    });
-  }, []);
-
-  // At the top of your component, after parsing DRIVE_FOLDER_IDS (ensure only one declaration at the top):
-  const [entranceMode, setEntranceMode] = useState(true);
-
-  // Add state to track which folder card is open and its files
-  const [openFolderId, setOpenFolderId] = useState<string | null>(null);
-  const [openFolderFiles, setOpenFolderFiles] = useState<DriveFile[]>([]);
-  const [openFolderLoading, setOpenFolderLoading] = useState(false);
-
-  // Function to fetch files for a folder
-  async function fetchFilesForFolder(folderId: string, accessToken: string) {
-    setOpenFolderLoading(true);
-    try {
-      const res = await fetch(
-        `https://www.googleapis.com/drive/v3/files?pageSize=20&fields=nextPageToken,files(id,name,mimeType,thumbnailLink,webViewLink,parents,shared,owners)&q='${folderId}' in parents and trashed=false`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-      const data = await res.json();
-      setOpenFolderFiles(data.files || []);
-    } finally {
-      setOpenFolderLoading(false);
-    }
-  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
@@ -2179,83 +2124,6 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
-      {DRIVE_FOLDER_IDS.length > 1 && entranceMode ? (
-        loadingFolders ? (
-          <div>Loading folders...</div>
-        ) : (
-          <div className="flex gap-4 flex-wrap mb-8">
-            {folderWidgets.map(folder => (
-              <div
-                key={folder.id}
-                className={`p-6 rounded-lg shadow bg-white flex flex-col items-center w-48 hover:shadow-lg transition ${folder.error ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <img src={openFolderIcon} alt="Folder" className="w-12 h-12 mb-2" />
-                <div className="font-semibold text-lg mb-2 text-center">
-                  {folder.name}
-                </div>
-                <button
-                  disabled={folder.error}
-                  className={`mt-2 px-4 py-2 rounded ${folder.error ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'}`}
-                  onClick={async () => {
-                    if (!folder.error) {
-                      setOpenFolderId(folder.id);
-                      setCurrentFolderId(folder.id);
-                      setCurrentFolderName(folder.name);
-                      setParentStack([]);
-                      const encrypted = localStorage.getItem('googleAccessToken');
-                      const googleToken = encrypted ? decryptToken(encrypted) : null;
-                      if (googleToken) {
-                        await fetchFilesForFolder(folder.id, googleToken);
-                      }
-                    }
-                  }}
-                >
-                  {folder.error ? 'No Access' : 'Open'}
-                </button>
-                {/* Show folder contents if this card is open */}
-                {openFolderId === folder.id && (
-                  <div className="mt-4 w-full">
-                    <button
-                      className="mb-2 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 w-full"
-                      onClick={() => setOpenFolderId(null)}
-                    >
-                      Close
-                    </button>
-                    {openFolderLoading ? (
-                      <div>Loading files...</div>
-                    ) : openFolderFiles.length === 0 ? (
-                      <div className="text-gray-500">No files in this folder.</div>
-                    ) : (
-                      <ul className="space-y-2">
-                        {openFolderFiles.map(file => (
-                          <li key={file.id} className="flex items-center gap-2">
-                            {getFileIcon(file)}
-                            <span>{file.name}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )
-      ) : (
-        // ... existing folder contents UI ...
-        <>
-          {/* ... existing folder contents UI ... */}
-          {/* Add a "Back to Folders" button in the folder contents UI if in multi-root mode: */}
-          {DRIVE_FOLDER_IDS.length > 1 && !entranceMode && (
-            <button
-              className="mb-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-              onClick={() => setEntranceMode(true)}
-            >
-              Back to Folders
-            </button>
-          )}
-        </>
       )}
     </div>
   );
