@@ -18,6 +18,7 @@ import {
   Users,
   Search,
   ChevronDown,
+  LogOut,
 } from 'lucide-react';
 import { ChevronRight, Filter } from 'lucide-react';
 import {
@@ -120,7 +121,9 @@ const Dashboard: React.FC = () => {
   );
   const [currentPage, setCurrentPage] = useState(1);
   const [currentFolder, setCurrentFolder] = useState<string>('root');
-  const [parentStack, setParentStack] = useState<string[]>([]);
+  const [parentStack, setParentStack] = useState<
+    { id: string; name: string }[]
+  >([]);
   const [folderNames, setFolderNames] = useState<{ [id: string]: string }>({
     root: 'My Drive',
   });
@@ -427,6 +430,10 @@ const Dashboard: React.FC = () => {
     navigate('/login');
   };
 
+  const DRIVE_FOLDER_ID = import.meta.env.VITE_DRIVE_FOLDER_ID;
+  const [currentFolderId, setCurrentFolderId] = useState(DRIVE_FOLDER_ID);
+  const [currentFolderName, setCurrentFolderName] = useState('My Drive');
+
   useEffect(() => {
     const encrypted = localStorage.getItem('googleAccessToken');
     const googleToken = encrypted ? decryptToken(encrypted) : null;
@@ -434,23 +441,14 @@ const Dashboard: React.FC = () => {
       navigate('/login', { replace: true });
       return;
     }
-    if (activeTab === 'mydrive') {
-      fetchDriveFiles(googleToken, currentPage, true, currentFolder);
-    } else if (activeTab === 'shared') {
-      if (currentFolder === 'root') {
-        fetchSharedWithMeFiles(googleToken, currentPage, true, 'root');
-      } else {
-        fetchDriveFiles(googleToken, currentPage, true, currentFolder);
-      }
-    }
-    // eslint-disable-next-line
-  }, [navigate, currentFolder, activeTab, currentPage]);
+    fetchDriveFiles(googleToken, 1, true, currentFolderId);
+  }, [navigate, currentFolderId]);
 
   async function fetchDriveFiles(
     accessToken: string,
     page: number = 1,
     initial = false,
-    folderId: string = 'root',
+    folderId: string = currentFolderId,
   ) {
     try {
       if (initial) setLoading(true);
@@ -462,42 +460,15 @@ const Dashboard: React.FC = () => {
           Authorization: `Bearer ${accessToken}`,
         },
       });
+      if (!res.ok) throw new Error('You do not have access to this folder.');
       const data = await res.json();
       setFiles(initial ? data.files || [] : [...files, ...(data.files || [])]);
       setNextPageToken(data.nextPageToken || null);
       setLoading(false);
     } catch (err) {
-      setError('Failed to fetch Google Drive files');
-      setLoading(false);
-    }
-  }
-  // Update fetchSharedWithMeFiles to accept parentFolderId
-  async function fetchSharedWithMeFiles(
-    accessToken: string,
-    page: number = 1,
-    initial = false,
-    parentFolderId: string | null = null,
-  ) {
-    try {
-      if (initial) setLoading(true);
-      let url = `https://www.googleapis.com/drive/v3/files?pageSize=${itemsPerPage}&fields=nextPageToken,files(id,name,mimeType,thumbnailLink,webViewLink,parents,shared,owners)`;
-      if (parentFolderId && parentFolderId !== 'root') {
-        url += `&q=sharedWithMe=true and trashed=false and '${parentFolderId}' in parents`;
-      } else {
-        url += `&q=sharedWithMe=true and trashed=false`;
-      }
-      if (page > 1 && nextPageToken) url += `&pageToken=${nextPageToken}`;
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-      const data = await res.json();
-      setFiles(initial ? data.files || [] : [...files, ...(data.files || [])]);
-      setNextPageToken(data.nextPageToken || null);
-      setLoading(false);
-    } catch (err) {
-      setError('Failed to fetch shared files');
+      setError(
+        'You do not have access to this folder. Please request access or check your permissions.',
+      );
       setLoading(false);
     }
   }
@@ -1249,93 +1220,77 @@ const Dashboard: React.FC = () => {
     resetPreview();
   };
 
+  // When opening a folder:
   const handleOpenFolder = (folder: DriveFile) => {
-    setParentStack((prev) => [...prev, currentFolder]);
-    setCurrentFolder(folder.id);
-    setFolderNames((prev) => ({ ...prev, [folder.id]: folder.name }));
-    setCurrentPage(1);
+    setParentStack((prev) => [
+      ...prev,
+      { id: currentFolderId, name: currentFolderName },
+    ]);
+    setCurrentFolderId(folder.id);
+    setCurrentFolderName(folder.name);
   };
 
+  // When going back:
   const handleBack = () => {
     if (parentStack.length > 0) {
       const prevStack = [...parentStack];
-      const parentId = prevStack.pop() || 'root';
+      const last = prevStack.pop();
+      if (last) {
+        setCurrentFolderId(last.id);
+        setCurrentFolderName(last.name);
       setParentStack(prevStack);
-      setCurrentFolder(parentId);
-      setCurrentPage(1);
+      }
     }
   };
 
-  const currentFolderName = folderNames[currentFolder] || 'My Drive';
-
-  // Create new folder in current folder
-  // const handleCreateFolder = async () => {
-  //   const folderName = prompt('Enter folder name:');
-  //   if (!folderName) return;
-  //   setCreatingFolder(true);
-  //   const googleToken = localStorage.getItem('googleAccessToken');
-  //   if (!googleToken) return;
-  //   try {
-  //     const res = await fetch('https://www.googleapis.com/drive/v3/files', {
-  //       method: 'POST',
-  //       headers: {
-  //         Authorization: `Bearer ${googleToken}`,
-  //         'Content-Type': 'application/json',
-  //       },
-  //       body: JSON.stringify({
-  //         name: folderName,
-  //         mimeType: FOLDER_MIME,
-  //         parents: [currentFolder],
-  //       }),
-  //     });
-  //     if (!res.ok) throw new Error('Failed to create folder');
-  //     setCreatingFolder(false);
-  //     showSnackbar('Folder created successfully!', 'success');
-  //     fetchDriveFiles(googleToken, '', true, currentFolder);
-  //   } catch (err: any) {
-  //     setCreatingFolder(false);
-  //     showSnackbar('Failed to create folder: ' + err.message, 'error');
-  //   }
-  // };
-
-  // // // Upload file to current folder
-  // const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  //   const file = e.target.files?.[0];
-  //   if (!file) return;
-  //   setUploadingFile(true);
-  //   const googleToken = localStorage.getItem('googleAccessToken');
-  //   if (!googleToken) return;
-  //   try {
-  //     // Step 1: Get upload URL
-  //     const metadata = {
-  //       name: file.name,
-  //       parents: [currentFolder],
-  //     };
-  //     const form = new FormData();
-  //     form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-  //     form.append('file', file);
-  //     const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-  //       method: 'POST',
-  //       headers: {
-  //         Authorization: `Bearer ${googleToken}`,
-  //       },
-  //       body: form,
-  //     });
-  //     if (!res.ok) throw new Error('Failed to upload file');
-  //     setUploadingFile(false);
-  //     showSnackbar('File uploaded successfully!', 'success');
-  //     // Refresh file list
-  //     fetchDriveFiles(googleToken, '', true, currentFolder);
-  //   } catch (err: any) {
-  //     setUploadingFile(false);
-  //     showSnackbar('Failed to upload file: ' + err.message, 'error');
-  //   }
-  // };
+  // Breadcrumbs rendering with Back button
+  <nav className="flex items-center text-sm text-gray-600 gap-1 flex-wrap min-w-0 flex-1 mb-2 sm:mb-0">
+    <button
+      className="mr-2 px-2 py-1 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+      onClick={handleBack}
+      disabled={parentStack.length === 0 && currentFolderId === DRIVE_FOLDER_ID}
+    >
+      Back
+    </button>
+    <button
+      className="hover:underline font-medium text-blue-600"
+      onClick={() => {
+        setCurrentFolderId(DRIVE_FOLDER_ID);
+        setCurrentFolderName('My Drive');
+        setParentStack([]);
+      }}
+      disabled={currentFolderId === DRIVE_FOLDER_ID}
+    >
+      My Drive
+    </button>
+    {parentStack.map((folder, idx) => (
+      <span key={folder.id} className="flex items-center">
+        <ChevronRight className="w-4 h-4 mx-1 text-gray-400" />
+        <button
+          className="hover:underline text-blue-600"
+          onClick={() => {
+            setCurrentFolderId(folder.id);
+            setCurrentFolderName(folder.name);
+            setParentStack(parentStack.slice(0, idx));
+          }}
+        >
+          {folder.name}
+        </button>
+      </span>
+    ))}
+    <span className="flex items-center">
+      <ChevronRight className="w-4 h-4 mx-1 text-gray-400" />
+      <span className="font-semibold text-gray-800 truncate max-w-[120px] md:max-w-[200px]">
+        {currentFolderName}
+      </span>
+    </span>
+  </nav>;
 
   // Suggested Folders Section (horizontal scroll, Google Drive style)
   const suggestedFolders = filteredFiles.filter(
     (file) =>
-      file.mimeType === FOLDER_MIME && (file.shared || file.owners?.length > 1),
+      file.mimeType === FOLDER_MIME &&
+      (file.shared || (file.owners?.length ?? 0) > 1),
   );
 
   // Add state for modals
@@ -1344,6 +1299,9 @@ const Dashboard: React.FC = () => {
   const [deleteFile, setDeleteFile] = useState<DriveFile | null>(null);
   const [moveFile, setMoveFile] = useState<DriveFile | null>(null);
   const [moveTarget, setMoveTarget] = useState('');
+
+  // Add state for suggested folders collapse
+  const [showSuggestedFolders, setShowSuggestedFolders] = useState(true);
 
   // Helper: Get all folders for move dropdown
   const allFolders = files.filter((f) => f.mimeType === FOLDER_MIME);
@@ -1375,9 +1333,7 @@ const Dashboard: React.FC = () => {
       showSnackbar('Renamed successfully!', 'success');
       // Refresh
       if (activeTab === 'mydrive') {
-        fetchDriveFiles(googleToken, currentPage, true, currentFolder);
-      } else {
-        fetchSharedWithMeFiles(googleToken, currentPage, true, currentFolder);
+        fetchDriveFiles(googleToken, currentPage, true, currentFolderId);
       }
     } catch (err: any) {
       showSnackbar('Rename failed: ' + err.message, 'error');
@@ -1406,9 +1362,7 @@ const Dashboard: React.FC = () => {
       showSnackbar('Deleted successfully!', 'success');
       // Refresh
       if (activeTab === 'mydrive') {
-        fetchDriveFiles(googleToken, currentPage, true, currentFolder);
-      } else {
-        fetchSharedWithMeFiles(googleToken, currentPage, true, currentFolder);
+        fetchDriveFiles(googleToken, currentPage, true, currentFolderId);
       }
     } catch (err: any) {
       showSnackbar('Delete failed: ' + err.message, 'error');
@@ -1442,14 +1396,89 @@ const Dashboard: React.FC = () => {
       showSnackbar('Moved successfully!', 'success');
       // Refresh
       if (activeTab === 'mydrive') {
-        fetchDriveFiles(googleToken, currentPage, true, currentFolder);
-      } else {
-        fetchSharedWithMeFiles(googleToken, currentPage, true, currentFolder);
+        fetchDriveFiles(googleToken, currentPage, true, currentFolderId);
       }
     } catch (err: any) {
       showSnackbar('Move failed: ' + err.message, 'error');
     }
   }
+
+  // Parse multiple root folder IDs from env
+  const DRIVE_FOLDER_IDS = (import.meta.env.VITE_DRIVE_FOLDER_ID || '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+  const [rootFolders, setRootFolders] = useState<
+    { id: string; name: string; error: boolean }[]
+  >([]);
+  const [loadingFolders, setLoadingFolders] = useState(true);
+
+  useEffect(() => {
+    const encrypted = localStorage.getItem('googleAccessToken');
+    const googleToken = encrypted ? decryptToken(encrypted) : null;
+    if (!googleToken) return;
+    setLoadingFolders(true);
+    Promise.all(
+      DRIVE_FOLDER_IDS.map((id: string) => fetchFolderMeta(id, googleToken)),
+    ).then((folders) => {
+      setRootFolders(folders);
+      setLoadingFolders(false);
+      // Only set current folder to the first accessible one
+      const firstAccessible = folders.find((f) => !f.error);
+      if (firstAccessible) {
+        setCurrentFolderId(firstAccessible.id);
+        setCurrentFolderName(firstAccessible.name);
+        setParentStack([]);
+      }
+    });
+    // eslint-disable-next-line
+  }, []);
+
+  async function fetchFolderMeta(folderId: string, accessToken: string) {
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${folderId}?fields=id,name`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    if (!res.ok) {
+      // If 404 or 403, you don't have access
+      return { id: folderId, name: 'No Access', error: true };
+    }
+    const data = await res.json();
+    return { id: data.id, name: data.name, error: false };
+  }
+
+  const [noAccessMessage, setNoAccessMessage] = useState('');
+
+  // Add state to hold files for each root folder
+  const [rootFolderFiles, setRootFolderFiles] = useState<
+    { id: string; name: string; files: DriveFile[] }[]
+  >([]);
+
+  // Fetch files for all accessible root folders when rootFolders changes
+  useEffect(() => {
+    const encrypted = localStorage.getItem('googleAccessToken');
+    const googleToken = encrypted ? decryptToken(encrypted) : null;
+    if (!googleToken) return;
+    // Only fetch for accessible folders
+    const accessibleFolders = rootFolders.filter((f) => !f.error);
+    Promise.all(
+      accessibleFolders.map((folder) =>
+        fetch(
+          `https://www.googleapis.com/drive/v3/files?pageSize=20&fields=nextPageToken,files(id,name,mimeType,thumbnailLink,webViewLink,parents,shared,owners)&q='${folder.id}' in parents and trashed=false`,
+          { headers: { Authorization: `Bearer ${googleToken}` } },
+        )
+          .then((res) => res.json())
+          .then((data) => ({
+            id: folder.id,
+            name: folder.name,
+            files: data.files || [],
+          })),
+      ),
+    ).then((results) => setRootFolderFiles(results));
+  }, [rootFolders]);
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
@@ -1465,39 +1494,50 @@ const Dashboard: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 h-[100vh] overflow-y-scroll">
         <main className="p-4 pt-6 w-full">
-          {/* Unified header: Breadcrumbs, Search, Filter */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6 w-full">
             {/* Breadcrumbs */}
             <nav className="flex items-center text-sm text-gray-600 gap-1 flex-wrap min-w-0 flex-1 mb-2 sm:mb-0">
               <button
+                className="mr-2 px-2 py-1 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+                onClick={handleBack}
+                disabled={
+                  parentStack.length === 0 &&
+                  currentFolderId === DRIVE_FOLDER_ID
+                }
+              >
+                Back
+              </button>
+              <button
                 className="hover:underline font-medium text-blue-600"
                 onClick={() => {
-                  setCurrentFolder('root');
+                  setCurrentFolderId(DRIVE_FOLDER_ID);
+                  setCurrentFolderName('My Drive');
                   setParentStack([]);
                 }}
-                disabled={currentFolder === 'root'}
+                disabled={currentFolderId === DRIVE_FOLDER_ID}
               >
                 My Drive
               </button>
-              {parentStack.map((folderId, idx) => (
-                <span key={folderId} className="flex items-center">
+              {parentStack.map((folder, idx) => (
+                <span key={folder.id} className="flex items-center">
                   <ChevronRight className="w-4 h-4 mx-1 text-gray-400" />
                   <button
                     className="hover:underline text-blue-600"
                     onClick={() => {
-                      setCurrentFolder(folderId);
+                      setCurrentFolderId(folder.id);
+                      setCurrentFolderName(folder.name);
                       setParentStack(parentStack.slice(0, idx));
                     }}
                   >
-                    {folderNames[folderId] || 'Folder'}
+                    {folder.name}
                   </button>
                 </span>
               ))}
-              {currentFolder !== 'root' && (
+              {currentFolderId !== DRIVE_FOLDER_ID && (
                 <span className="flex items-center">
                   <ChevronRight className="w-4 h-4 mx-1 text-gray-400" />
                   <span className="font-semibold text-gray-800 truncate max-w-[120px] md:max-w-[200px]">
-                    {folderNames[currentFolder] || 'My Drive'}
+                    {currentFolderName}
                   </span>
                 </span>
               )}
@@ -1618,14 +1658,23 @@ const Dashboard: React.FC = () => {
           ) : (
             <>
               {/* Only show suggested folders in root */}
-              {currentFolder === 'root' && suggestedFolders.length > 0 && (
+              {currentFolderId === DRIVE_FOLDER_ID &&
+                suggestedFolders.length > 0 && (
                 <section className="mb-8">
-                  <div className="flex items-center gap-2 mb-3">
-                    <ChevronRight className="w-5 h-5 text-gray-500" />
+                    <div
+                      className="flex items-center gap-2 mb-3 cursor-pointer select-none"
+                      onClick={() => setShowSuggestedFolders((prev) => !prev)}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <ChevronRight
+                        className={`w-5 h-5 text-gray-500 transition-transform ${showSuggestedFolders ? 'rotate-90' : ''}`}
+                      />
                     <span className="font-semibold text-lg text-gray-800">
                       Suggested folders
                     </span>
                   </div>
+                    {showSuggestedFolders && (
                   <div className="flex flex-wrap overflow-x-auto pb-2 hide-scrollbar w-full min-w-0">
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                       {suggestedFolders.map((file) => (
@@ -1633,12 +1682,15 @@ const Dashboard: React.FC = () => {
                           key={file.id}
                           className="flex items-center bg-gray-100 hover:bg-gray-200 rounded-2xl px-3 py-2 shadow-sm transition cursor-pointer relative"
                           onClick={() => {
-                            setParentStack((prev) => [...prev, currentFolder]);
-                            setCurrentFolder(file.id);
-                            setFolderNames((prev) => ({
+                                setParentStack((prev) => [
                               ...prev,
-                              [file.id]: file.name,
-                            }));
+                                  {
+                                    id: currentFolderId,
+                                    name: currentFolderName,
+                                  },
+                                ]);
+                                setCurrentFolderId(file.id);
+                                setCurrentFolderName(file.name);
                             setCurrentPage(1);
                           }}
                         >
@@ -1647,7 +1699,8 @@ const Dashboard: React.FC = () => {
                             <div className="w-9 h-9 rounded-lg  flex items-center justify-center text-white">
                               <span className="text-lg">📁</span>
                             </div>
-                            {file.owners?.length > 1 || file.shared ? (
+                                {(file.owners?.length ?? 0) > 1 ||
+                                file.shared ? (
                               <div className="absolute -bottom-1 -right-1 bg-white rounded-full border border-gray-200 p-0.5">
                                 <Users className="w-3 h-3 text-gray-500" />
                               </div>
@@ -1659,7 +1712,7 @@ const Dashboard: React.FC = () => {
                               {file.name}
                             </div>
                             <div className="text-xs text-gray-500 truncate">
-                              {file.owners?.length > 1 || file.shared
+                                  {(file.owners?.length ?? 0) > 1 || file.shared
                                 ? 'In Shared with me'
                                 : 'In My Drive'}
                             </div>
@@ -1683,7 +1736,8 @@ const Dashboard: React.FC = () => {
                                 <DropdownMenuItem
                                   onClick={() => handleOpenFolder(file)}
                                 >
-                                  <FolderOpen className="w-4 h-4 mr-2" /> Open
+                                      <FolderOpen className="w-4 h-4 mr-2" />{' '}
+                                      Open
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
@@ -1698,8 +1752,10 @@ const Dashboard: React.FC = () => {
                       ))}
                     </div>
                   </div>
+                    )}
                 </section>
               )}
+
               {/* Main grid of files/folders (make more responsive, flex for mobile, grid for desktop) */}
               <div className="flex flex-wrap gap-4">
                 {filteredFiles
@@ -1713,13 +1769,7 @@ const Dashboard: React.FC = () => {
                       className="w-full sm:w-[48%] lg:w-[32%] flex items-center justify-between px-4 py-3 bg-[#f4f7fb] rounded-xl cursor-pointer hover:shadow-sm transition-all"
                       onClick={() => {
                         if (file.mimeType === FOLDER_MIME) {
-                          setParentStack((prev) => [...prev, currentFolder]);
-                          setCurrentFolder(file.id);
-                          setFolderNames((prev) => ({
-                            ...prev,
-                            [file.id]: file.name,
-                          }));
-                          setCurrentPage(1);
+                          handleOpenFolder(file);
                         } else if (canPreviewFile(file)) {
                           handlePreview(file);
                         }
@@ -1860,14 +1910,7 @@ const Dashboard: React.FC = () => {
                     googleToken!,
                     currentPage + 1,
                     false,
-                    currentFolder,
-                  );
-                } else if (activeTab === 'shared') {
-                  fetchSharedWithMeFiles(
-                    googleToken!,
-                    currentPage + 1,
-                    false,
-                    currentFolder,
+                    currentFolderId,
                   );
                 }
               }}
