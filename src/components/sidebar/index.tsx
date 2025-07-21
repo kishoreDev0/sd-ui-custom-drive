@@ -20,7 +20,13 @@ interface SidebarProps {
   activeTab: 'mydrive' | 'shared';
   setActiveTab: (tab: 'mydrive' | 'shared') => void;
   setCurrentFolder: (folder: string) => void;
-  setParentStack: (stack: {id: string, name: string}[] | ((prev: {id: string, name: string}[]) => {id: string, name: string}[])) => void;
+  setParentStack: (
+    stack:
+      | { id: string; name: string }[]
+      | ((
+          prev: { id: string; name: string }[],
+        ) => { id: string; name: string }[]),
+  ) => void;
   setCurrentPage: (page: number) => void;
 }
 
@@ -131,8 +137,6 @@ const Sidebar: React.FC<SidebarProps> = ({
               />
               My Drive
             </button>
-
-           
           </nav>
         </div>
 

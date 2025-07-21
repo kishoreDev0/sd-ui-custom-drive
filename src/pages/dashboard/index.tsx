@@ -121,7 +121,9 @@ const Dashboard: React.FC = () => {
   );
   const [currentPage, setCurrentPage] = useState(1);
   const [currentFolder, setCurrentFolder] = useState<string>('root');
-  const [parentStack, setParentStack] = useState<{id: string, name: string}[]>([]);
+  const [parentStack, setParentStack] = useState<
+    { id: string; name: string }[]
+  >([]);
   const [folderNames, setFolderNames] = useState<{ [id: string]: string }>({
     root: 'My Drive',
   });
@@ -464,7 +466,9 @@ const Dashboard: React.FC = () => {
       setNextPageToken(data.nextPageToken || null);
       setLoading(false);
     } catch (err) {
-      setError('You do not have access to this folder. Please request access or check your permissions.');
+      setError(
+        'You do not have access to this folder. Please request access or check your permissions.',
+      );
       setLoading(false);
     }
   }
@@ -1218,7 +1222,10 @@ const Dashboard: React.FC = () => {
 
   // When opening a folder:
   const handleOpenFolder = (folder: DriveFile) => {
-    setParentStack(prev => [...prev, { id: currentFolderId, name: currentFolderName }]);
+    setParentStack((prev) => [
+      ...prev,
+      { id: currentFolderId, name: currentFolderName },
+    ]);
     setCurrentFolderId(folder.id);
     setCurrentFolderName(folder.name);
   };
@@ -1231,7 +1238,7 @@ const Dashboard: React.FC = () => {
       if (last) {
         setCurrentFolderId(last.id);
         setCurrentFolderName(last.name);
-        setParentStack(prevStack);
+      setParentStack(prevStack);
       }
     }
   };
@@ -1277,13 +1284,13 @@ const Dashboard: React.FC = () => {
         {currentFolderName}
       </span>
     </span>
-  </nav>
-
+  </nav>;
 
   // Suggested Folders Section (horizontal scroll, Google Drive style)
   const suggestedFolders = filteredFiles.filter(
     (file) =>
-      file.mimeType === FOLDER_MIME && (file.shared || (file.owners?.length ?? 0) > 1),
+      file.mimeType === FOLDER_MIME &&
+      (file.shared || (file.owners?.length ?? 0) > 1),
   );
 
   // Add state for modals
@@ -1396,6 +1403,83 @@ const Dashboard: React.FC = () => {
     }
   }
 
+  // Parse multiple root folder IDs from env
+  const DRIVE_FOLDER_IDS = (import.meta.env.VITE_DRIVE_FOLDER_ID || '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+  const [rootFolders, setRootFolders] = useState<
+    { id: string; name: string; error: boolean }[]
+  >([]);
+  const [loadingFolders, setLoadingFolders] = useState(true);
+
+  useEffect(() => {
+    const encrypted = localStorage.getItem('googleAccessToken');
+    const googleToken = encrypted ? decryptToken(encrypted) : null;
+    if (!googleToken) return;
+    setLoadingFolders(true);
+    Promise.all(
+      DRIVE_FOLDER_IDS.map((id: string) => fetchFolderMeta(id, googleToken)),
+    ).then((folders) => {
+      setRootFolders(folders);
+      setLoadingFolders(false);
+      // Only set current folder to the first accessible one
+      const firstAccessible = folders.find((f) => !f.error);
+      if (firstAccessible) {
+        setCurrentFolderId(firstAccessible.id);
+        setCurrentFolderName(firstAccessible.name);
+        setParentStack([]);
+      }
+    });
+    // eslint-disable-next-line
+  }, []);
+
+  async function fetchFolderMeta(folderId: string, accessToken: string) {
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${folderId}?fields=id,name`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    if (!res.ok) {
+      // If 404 or 403, you don't have access
+      return { id: folderId, name: 'No Access', error: true };
+    }
+    const data = await res.json();
+    return { id: data.id, name: data.name, error: false };
+  }
+
+  const [noAccessMessage, setNoAccessMessage] = useState('');
+
+  // Add state to hold files for each root folder
+  const [rootFolderFiles, setRootFolderFiles] = useState<
+    { id: string; name: string; files: DriveFile[] }[]
+  >([]);
+
+  // Fetch files for all accessible root folders when rootFolders changes
+  useEffect(() => {
+    const encrypted = localStorage.getItem('googleAccessToken');
+    const googleToken = encrypted ? decryptToken(encrypted) : null;
+    if (!googleToken) return;
+    // Only fetch for accessible folders
+    const accessibleFolders = rootFolders.filter((f) => !f.error);
+    Promise.all(
+      accessibleFolders.map((folder) =>
+        fetch(
+          `https://www.googleapis.com/drive/v3/files?pageSize=20&fields=nextPageToken,files(id,name,mimeType,thumbnailLink,webViewLink,parents,shared,owners)&q='${folder.id}' in parents and trashed=false`,
+          { headers: { Authorization: `Bearer ${googleToken}` } },
+        )
+          .then((res) => res.json())
+          .then((data) => ({
+            id: folder.id,
+            name: folder.name,
+            files: data.files || [],
+          })),
+      ),
+    ).then((results) => setRootFolderFiles(results));
+  }, [rootFolders]);
+
   return (
     <div className="min-h-screen bg-gray-100 flex">
       {/* Sidebar */}
@@ -1410,14 +1494,16 @@ const Dashboard: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 h-[100vh] overflow-y-scroll">
         <main className="p-4 pt-6 w-full">
-          
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6 w-full">
             {/* Breadcrumbs */}
             <nav className="flex items-center text-sm text-gray-600 gap-1 flex-wrap min-w-0 flex-1 mb-2 sm:mb-0">
               <button
                 className="mr-2 px-2 py-1 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
                 onClick={handleBack}
-                disabled={parentStack.length === 0 && currentFolderId === DRIVE_FOLDER_ID}
+                disabled={
+                  parentStack.length === 0 &&
+                  currentFolderId === DRIVE_FOLDER_ID
+                }
               >
                 Back
               </button>
@@ -1572,94 +1658,104 @@ const Dashboard: React.FC = () => {
           ) : (
             <>
               {/* Only show suggested folders in root */}
-              {currentFolderId === DRIVE_FOLDER_ID && suggestedFolders.length > 0 && (
+              {currentFolderId === DRIVE_FOLDER_ID &&
+                suggestedFolders.length > 0 && (
                 <section className="mb-8">
-                  <div
-                    className="flex items-center gap-2 mb-3 cursor-pointer select-none"
-                    onClick={() => setShowSuggestedFolders((prev) => !prev)}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <ChevronRight
-                      className={`w-5 h-5 text-gray-500 transition-transform ${showSuggestedFolders ? 'rotate-90' : ''}`}
-                    />
+                    <div
+                      className="flex items-center gap-2 mb-3 cursor-pointer select-none"
+                      onClick={() => setShowSuggestedFolders((prev) => !prev)}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <ChevronRight
+                        className={`w-5 h-5 text-gray-500 transition-transform ${showSuggestedFolders ? 'rotate-90' : ''}`}
+                      />
                     <span className="font-semibold text-lg text-gray-800">
                       Suggested folders
                     </span>
                   </div>
-                  {showSuggestedFolders && (
-                    <div className="flex flex-wrap overflow-x-auto pb-2 hide-scrollbar w-full min-w-0">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {suggestedFolders.map((file) => (
-                          <div
-                            key={file.id}
-                            className="flex items-center bg-gray-100 hover:bg-gray-200 rounded-2xl px-3 py-2 shadow-sm transition cursor-pointer relative"
-                            onClick={() => {
-                              setParentStack((prev) => [...prev, { id: currentFolderId, name: currentFolderName }]);
-                              setCurrentFolderId(file.id);
-                              setCurrentFolderName(file.name);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            {/* Folder Icon with Shared Badge */}
-                            <div className="relative mr-4">
-                              <div className="w-9 h-9 rounded-lg  flex items-center justify-center text-white">
-                                <span className="text-lg">📁</span>
-                              </div>
-                              {(file.owners?.length ?? 0) > 1 || file.shared ? (
-                                <div className="absolute -bottom-1 -right-1 bg-white rounded-full border border-gray-200 p-0.5">
-                                  <Users className="w-3 h-3 text-gray-500" />
-                                </div>
-                              ) : null}
+                    {showSuggestedFolders && (
+                  <div className="flex flex-wrap overflow-x-auto pb-2 hide-scrollbar w-full min-w-0">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {suggestedFolders.map((file) => (
+                        <div
+                          key={file.id}
+                          className="flex items-center bg-gray-100 hover:bg-gray-200 rounded-2xl px-3 py-2 shadow-sm transition cursor-pointer relative"
+                          onClick={() => {
+                                setParentStack((prev) => [
+                              ...prev,
+                                  {
+                                    id: currentFolderId,
+                                    name: currentFolderName,
+                                  },
+                                ]);
+                                setCurrentFolderId(file.id);
+                                setCurrentFolderName(file.name);
+                            setCurrentPage(1);
+                          }}
+                        >
+                          {/* Folder Icon with Shared Badge */}
+                          <div className="relative mr-4">
+                            <div className="w-9 h-9 rounded-lg  flex items-center justify-center text-white">
+                              <span className="text-lg">📁</span>
                             </div>
+                                {(file.owners?.length ?? 0) > 1 ||
+                                file.shared ? (
+                              <div className="absolute -bottom-1 -right-1 bg-white rounded-full border border-gray-200 p-0.5">
+                                <Users className="w-3 h-3 text-gray-500" />
+                              </div>
+                            ) : null}
+                          </div>
 
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-gray-900 truncate text-base">
-                                {file.name}
-                              </div>
-                              <div className="text-xs text-gray-500 truncate">
-                                {(file.owners?.length ?? 0) > 1 || file.shared
-                                  ? 'In Shared with me'
-                                  : 'In My Drive'}
-                              </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-gray-900 truncate text-base">
+                              {file.name}
                             </div>
-
-                            {/* 3-dots menu */}
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              className="ml-2"
-                            >
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <button className="p-1.5 rounded-full hover:bg-gray-200">
-                                    <MoreVertical className="w-4 h-4 text-gray-600" />
-                                  </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                  align="end"
-                                  className="min-w-[180px] z-50"
-                                >
-                                  <DropdownMenuItem
-                                    onClick={() => handleOpenFolder(file)}
-                                  >
-                                    <FolderOpen className="w-4 h-4 mr-2" /> Open
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={() => setShareFile(file)}
-                                  >
-                                    <Share2 className="w-4 h-4 mr-2" /> Share
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                            <div className="text-xs text-gray-500 truncate">
+                                  {(file.owners?.length ?? 0) > 1 || file.shared
+                                ? 'In Shared with me'
+                                : 'In My Drive'}
                             </div>
                           </div>
-                        ))}
-                      </div>
+
+                          {/* 3-dots menu */}
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="ml-2"
+                          >
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button className="p-1.5 rounded-full hover:bg-gray-200">
+                                  <MoreVertical className="w-4 h-4 text-gray-600" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent
+                                align="end"
+                                className="min-w-[180px] z-50"
+                              >
+                                <DropdownMenuItem
+                                  onClick={() => handleOpenFolder(file)}
+                                >
+                                      <FolderOpen className="w-4 h-4 mr-2" />{' '}
+                                      Open
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => setShareFile(file)}
+                                >
+                                  <Share2 className="w-4 h-4 mr-2" /> Share
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  )}
+                  </div>
+                    )}
                 </section>
               )}
+
               {/* Main grid of files/folders (make more responsive, flex for mobile, grid for desktop) */}
               <div className="flex flex-wrap gap-4">
                 {filteredFiles
@@ -2029,7 +2125,6 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
-    
     </div>
   );
 };
